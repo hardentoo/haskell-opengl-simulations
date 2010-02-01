@@ -1,11 +1,12 @@
--- Simulation.hs - easily extensible, reasonable defaults
-module Simulation where
+-- easily extensible GL simulation application with reasonable defaults
+module Graphics.UI.Simulation where
 import Graphics.UI.GLUT
+import Data.Matrix.GL (vec3f)
+
 import System.IO.Unsafe (unsafePerformIO)
 import Data.IORef (IORef,newIORef)
 import Control.Monad (when)
 import qualified Data.Set as Set
-
 
 data SimWindow = SimWindow {
     winTitle :: String,
@@ -125,7 +126,3 @@ class Simulation a where
             postRedisplay Nothing
         
         mainLoop
- 
-vec3f :: Real a => a -> a -> a -> Vector3 GLfloat
-vec3f x y z = Vector3 (f x) (f y) (f z)
-    where f = fromRational . toRational

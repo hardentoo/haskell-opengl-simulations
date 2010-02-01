@@ -1,7 +1,7 @@
 -- navigation and spheres
 module Main where
 import Graphics.UI.GLUT
-import Simulation
+import Graphics.UI.Simulation
 
 data SphereSim = SphereSim
 
