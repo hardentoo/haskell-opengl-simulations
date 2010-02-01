@@ -1,7 +1,11 @@
 -- easily extensible GL simulation application with reasonable defaults
-module Graphics.UI.GL.Simulation where
-import Graphics.UI.GLUT
-import Data.Matrix.GL (vector3f,buildMatrix)
+module Graphics.UI.GL.Simulation (
+    module Data.GL,
+    module Graphics.UI.GLUT,
+    Simulation(..), SimWindow(..), Camera(..)
+) where
+import Graphics.UI.GLUT hiding (Matrix,newMatrix)
+import Data.GL
 
 import System.IO.Unsafe (unsafePerformIO)
 import Data.IORef (IORef,newIORef)
@@ -39,7 +43,7 @@ class Simulation a where
         cameraFOV = 70,
         cameraNear = 0.1,
         cameraFar = 100000,
-        cameraMatrix = unsafePerformIO $ buildMatrix $ do
+        cameraMatrix = unsafePerformIO $ newMatrix $ do
             rotate 90.0 $ vector3f 1 0 0 -- z-up
             translate $ vector3f 0 (-4) 2
     }
@@ -88,11 +92,14 @@ class Simulation a where
         $ newIORef (Set.empty :: Set.Set Key)
     
     navigation :: a -> GLmatrix GLdouble -> IO (GLmatrix GLdouble)
-    navigation sim gl = do
+    navigation sim matrix = do
         keys <- get $ keySetRef sim
-        when (Char 'w' `Set.member` keys) $ do
-            putStrLn "w!"
-        return gl
+        let
+            transforms = (flip map) (Set.elems keys)
+                $ \key -> case key of
+                    Char 'w' -> mTranslate (vector3d 0 1 0)
+                    _ -> id
+        return $ foldl (flip ($)) matrix transforms
     
     keyboard :: a -> KeyboardMouseCallback
     keyboard sim key keyState modifiers pos = return ()

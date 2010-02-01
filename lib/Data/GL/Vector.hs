@@ -1,6 +1,6 @@
 {-# LANGUAGE MultiParamTypeClasses, FlexibleInstances #-}
 
-module Data.Matrix.GL where
+module Data.GL.Vector where
 import Graphics.UI.GLUT
 
 class Num a => Vector t a where
@@ -26,12 +26,6 @@ instance Num a => Vector Vertex3 a where
     fromVector (Vertex3 x y z) = [x,y,z]
     toVector (x:y:z:_) = Vertex3 x y z
 
-buildMatrix :: IO () -> IO (GLmatrix GLdouble)
-buildMatrix matM = preservingMatrix $ do
-    loadIdentity
-    matM
-    get $ matrix Nothing
-
 -- convenience functions for vector-esque operations
 
 vector3f :: Real a => a -> a -> a -> Vector3 GLfloat
@@ -46,26 +40,14 @@ vertex3f :: Real a => a -> a -> a -> Vertex3 GLfloat
 vertex3f x y z = Vertex3 (f x) (f y) (f z)
     where f = fromRational . toRational
 
-vertex3fM :: Real a => a -> a -> a -> IO ()
-vertex3fM x y z = vertex $ vertex3f x y z
-
 vertex3d :: Real a => a -> a -> a -> Vertex3 GLdouble
 vertex3d x y z = Vertex3 (f x) (f y) (f z)
     where f = fromRational . toRational
-
-vertex3dM :: Real a => a -> a -> a -> IO ()
-vertex3dM x y z = vertex $ vertex3f x y z
 
 color3f :: Real a => a -> a -> a -> Color3 GLfloat
 color3f x y z = Color3 (f x) (f y) (f z)
     where f = fromRational . toRational
 
-color3fM :: Real a => a -> a -> a -> IO ()
-color3fM x y z = color $ color3f x y z
-
 color3d :: Real a => a -> a -> a -> Color3 GLdouble
 color3d x y z = Color3 (f x) (f y) (f z)
     where f = fromRational . toRational
-
-color3dM :: Real a => a -> a -> a -> IO ()
-color3dM x y z = color $ color3d x y z
