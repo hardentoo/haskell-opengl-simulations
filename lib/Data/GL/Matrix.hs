@@ -25,12 +25,12 @@ instance MatrixComponent a => Matrix GLmatrix a where
     
     mTranslate vec mat = unsafePerformIO $ preservingMatrix $ do
         loadIdentity
-        multMatrix mat
         translate vec
+        multMatrix mat
         get $ matrix Nothing
     
     mRotate theta vec mat = unsafePerformIO $ preservingMatrix $ do
         loadIdentity
-        multMatrix mat
         rotate theta vec
+        multMatrix mat
         get $ matrix Nothing
