@@ -83,9 +83,16 @@ class Simulation a where
         perspective fov (w' / h') near far
         matrixMode $= Modelview 0
     
-    keysRef :: a -> IORef (Set.Set Key)
-    keysRef sim = unsafePerformIO
+    keySetRef :: a -> IORef (Set.Set Key)
+    keySetRef sim = unsafePerformIO
         $ newIORef (Set.empty :: Set.Set Key)
+    
+    navigation :: a -> GLmatrix GLdouble -> IO (GLmatrix GLdouble)
+    navigation sim gl = do
+        keys <- get $ keySetRef sim
+        when (Char 'w' `Set.member` keys) $ do
+            putStrLn "w!"
+        return gl
     
     keyboard :: a -> KeyboardMouseCallback
     keyboard sim key keyState modifiers pos = return ()
@@ -100,8 +107,8 @@ class Simulation a where
         (keyboardMouseCallback $=) . Just $
             \key keyState modifiers pos -> do
                 when (key == Char '\27') leaveMainLoop -- esc
-                -- update keysRef state
-                (keysRef sim $~) $ case keyState of
+                -- update keySetRef state
+                (keySetRef sim $~) $ case keyState of
                     Down -> Set.insert key
                     Up -> Set.delete key
                 -- run user callback
