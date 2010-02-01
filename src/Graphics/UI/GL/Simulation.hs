@@ -1,5 +1,5 @@
 -- easily extensible GL simulation application with reasonable defaults
-module Graphics.UI.Simulation where
+module Graphics.UI.GL.Simulation where
 import Graphics.UI.GLUT
 import Data.Matrix.GL (vec3f)
 
@@ -93,11 +93,7 @@ class Simulation a where
         $ newIORef (Set.empty :: Set.Set Key)
     
     keyboard :: a -> KeyboardMouseCallback
-    keyboard sim key keyState modifiers pos = do
-        when (key == Char '\27') leaveMainLoop
-        (keysRef sim $~) $ case keyState of
-            Down -> Set.insert key
-            Up -> Set.delete key
+    keyboard sim key keyState modifiers pos = return ()
     
     runSimulation :: a -> IO ()
     runSimulation sim = do
@@ -108,7 +104,12 @@ class Simulation a where
         actionOnWindowClose $= MainLoopReturns -- ghci stays running
         (keyboardMouseCallback $=) . Just $
             \key keyState modifiers pos -> do
-                when (key == Char '\27') leaveMainLoop
+                when (key == Char '\27') leaveMainLoop -- esc
+                -- update keysRef state
+                (keysRef sim $~) $ case keyState of
+                    Down -> Set.insert key
+                    Up -> Set.delete key
+                -- run user callback
                 keyboard sim key keyState modifiers pos
         
         reshapeCallback $= Just (reshape sim)
