@@ -95,7 +95,6 @@ class Simulation a where
     
     navigation :: a -> KeySet -> GLmatrix GLdouble -> IO (GLmatrix GLdouble)
     navigation sim keys mat = do
-        print keys
         return $ foldl (\m k -> keyf k m) mat $ Set.elems keys
             where
                 keyf (Char 'w') = mTranslate (vector3d 0 1 0)
