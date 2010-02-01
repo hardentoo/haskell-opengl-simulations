@@ -2,15 +2,17 @@
 module Graphics.UI.GL.Simulation (
     module Data.GL,
     module Graphics.UI.GLUT,
-    Simulation(..), SimWindow(..), Camera(..)
+    Simulation(..), SimWindow(..), Camera(..), KeySet
 ) where
 import Graphics.UI.GLUT hiding (Matrix,newMatrix)
 import Data.GL
+import Data.Time.Clock (getCurrentTime, diffUTCTime)
 
 import System.IO.Unsafe (unsafePerformIO)
 import Data.IORef (IORef,newIORef)
-import Control.Monad (when)
+import Control.Monad (when,forever)
 import qualified Data.Set as Set
+import Control.Concurrent (forkIO,threadDelay)
 
 data SimWindow = SimWindow {
     winTitle :: String,
@@ -26,6 +28,8 @@ data Camera = Camera {
     cameraMatrix :: GLmatrix GLdouble
 }
 
+type KeySet = Set.Set Key
+
 class Simulation a where
     display :: a -> IO a
     display = return
@@ -38,15 +42,17 @@ class Simulation a where
         winBG = Color4 0.2 0.2 0.2 1
     }
     
-    camera :: a -> Camera
-    camera = const $ Camera {
-        cameraFOV = 70,
-        cameraNear = 0.1,
-        cameraFar = 100000,
-        cameraMatrix = unsafePerformIO $ newMatrix $ do
+    initCamera :: a -> IO Camera
+    initCamera sim = do
+        m <- newMatrix $ do
             rotate 90.0 $ vector3f 1 0 0 -- z-up
             translate $ vector3f 0 (-4) 2
-    }
+        return $ Camera {
+            cameraFOV = 70,
+            cameraNear = 0.1,
+            cameraFar = 100000,
+            cameraMatrix = m
+        }
     
     initModes :: a -> [ DisplayMode ]
     initModes = const [ DoubleBuffered, RGBMode, WithDepthBuffer ]
@@ -72,13 +78,13 @@ class Simulation a where
         lighting $= Disabled
         texture Texture2D $= Enabled
     
-    reshape :: a -> ReshapeCallback
-    reshape sim size@(Size w h) = do
+    reshape :: a -> IORef Camera -> ReshapeCallback
+    reshape sim cameraRef size@(Size w h) = do
         viewport $= (Position 0 0, size)
         matrixMode $= Projection
         loadIdentity
+        cam <- get cameraRef
         let
-            cam = camera sim
             fov = cameraFOV cam
             near = cameraNear cam
             far = cameraFar cam
@@ -87,19 +93,13 @@ class Simulation a where
         perspective fov (w' / h') near far
         matrixMode $= Modelview 0
     
-    keySetRef :: a -> IORef (Set.Set Key)
-    keySetRef sim = unsafePerformIO
-        $ newIORef (Set.empty :: Set.Set Key)
-    
-    navigation :: a -> GLmatrix GLdouble -> IO (GLmatrix GLdouble)
-    navigation sim matrix = do
-        keys <- get $ keySetRef sim
-        let
-            transforms = (flip map) (Set.elems keys)
-                $ \key -> case key of
-                    Char 'w' -> mTranslate (vector3d 0 1 0)
-                    _ -> id
-        return $ foldl (flip ($)) matrix transforms
+    navigation :: a -> KeySet -> GLmatrix GLdouble -> IO (GLmatrix GLdouble)
+    navigation sim keys mat = do
+        print keys
+        return $ foldl (\m k -> keyf k m) mat $ Set.elems keys
+            where
+                keyf (Char 'w') = mTranslate (vector3d 0 1 0)
+                keyf _ = id
     
     keyboard :: a -> KeyboardMouseCallback
     keyboard sim key keyState modifiers pos = return ()
@@ -110,27 +110,43 @@ class Simulation a where
         initWindow sim
         initDisplay sim
         
+        simRef <- newIORef sim
+        cameraRef <- newIORef =<< initCamera sim
+        keySetRef <- newIORef Set.empty
+        
         actionOnWindowClose $= MainLoopReturns -- ghci stays running
         (keyboardMouseCallback $=) . Just $
             \key keyState modifiers pos -> do
                 when (key == Char '\27') leaveMainLoop -- esc
-                -- update keySetRef state
-                (keySetRef sim $~) $ case keyState of
+                -- update key set
+                (keySetRef $~) $ case keyState of
                     Down -> Set.insert key
                     Up -> Set.delete key
                 -- run user callback
                 keyboard sim key keyState modifiers pos
         
-        reshapeCallback $= Just (reshape sim)
+        reshapeCallback $= Just (reshape sim cameraRef)
         
-        simRef <- newIORef sim
+        -- navigation gets its own thread with regular updates
+        forkIO $ forever $ do
+            t' <- elapsed $ do
+                sim <- get simRef
+                cam <- get cameraRef
+                keys <- get keySetRef
+                mat <- navigation sim keys (cameraMatrix cam)
+                cameraRef $= cam { cameraMatrix = mat }
+            let t = max 0.0 (0.04 - t')
+            -- ~(1/25) seconds between updates
+            threadDelay $ floor (t * 1e6)
+        
         displayCallback $= do
             sim <- get simRef
             clearColor $= (winBG $ window sim)
             clear [ ColorBuffer, DepthBuffer ]
             
             loadIdentity
-            multMatrix $ cameraMatrix $ camera sim
+            cam <- get cameraRef
+            multMatrix $ cameraMatrix cam
             
             (simRef $=) =<< display sim
             
@@ -139,3 +155,11 @@ class Simulation a where
             postRedisplay Nothing
         
         mainLoop
+
+-- elapsed time to run the supplied action in seconds
+elapsed :: Floating a => IO () -> IO a
+elapsed m = do
+    t1 <- getCurrentTime
+    m
+    t2 <- getCurrentTime
+    return $ fromRational $ toRational $ diffUTCTime t1 t2
