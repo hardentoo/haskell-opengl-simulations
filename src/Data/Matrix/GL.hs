@@ -30,3 +30,9 @@ vec3f x y z = Vector3 (f x) (f y) (f z)
 vec3d :: Real a => a -> a -> a -> Vector3 GLdouble
 vec3d x y z = Vector3 (f x) (f y) (f z)
     where f = fromRational . toRational
+
+buildMatrix :: IO () -> IO (GLmatrix GLdouble)
+buildMatrix matM = preservingMatrix $ do
+    loadIdentity
+    matM
+    get $ matrix Nothing

@@ -1,7 +1,7 @@
 -- easily extensible GL simulation application with reasonable defaults
 module Graphics.UI.GL.Simulation where
 import Graphics.UI.GLUT
-import Data.Matrix.GL (vec3f)
+import Data.Matrix.GL (vec3f,buildMatrix)
 
 import System.IO.Unsafe (unsafePerformIO)
 import Data.IORef (IORef,newIORef)
@@ -21,12 +21,6 @@ data Camera = Camera {
     cameraFar :: GLdouble,
     cameraMatrix :: GLmatrix GLdouble
 }
-
-buildMatrix :: IO () -> IO (GLmatrix GLdouble)
-buildMatrix matM = preservingMatrix $ do
-    loadIdentity
-    matM
-    get $ matrix Nothing
 
 class Simulation a where
     display :: a -> IO a
