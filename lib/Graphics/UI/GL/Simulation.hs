@@ -97,7 +97,11 @@ class Simulation a where
     navigation sim keys mat = do
         return $ foldl (\m k -> keyf k m) mat $ Set.elems keys
             where
-                keyf (Char 'w') = mTranslate (vector3d 0 1 0)
+                dv = 0.1
+                keyf (Char 'w') = mTranslate (vector3d 0 dv 0)
+                keyf (Char 's') = mTranslate (vector3d 0 (-dv) 0)
+                keyf (Char 'a') = mTranslate (vector3d dv 0 0)
+                keyf (Char 'd') = mTranslate (vector3d (-dv) 0 0)
                 keyf _ = id
     
     keyboard :: a -> KeyboardMouseCallback
@@ -134,8 +138,8 @@ class Simulation a where
                 keys <- get keySetRef
                 mat <- navigation sim keys (cameraMatrix cam)
                 cameraRef $= cam { cameraMatrix = mat }
-            let t = max 0.0 (0.04 - t')
-            -- ~(1/25) seconds between updates
+            let t = max 0.0 (0.01 - t')
+            -- ~(1/100) seconds between updates
             threadDelay $ floor (t * 1e6)
         
         displayCallback $= do
