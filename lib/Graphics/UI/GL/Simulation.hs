@@ -29,6 +29,10 @@ data Camera = Camera {
 }
 
 type KeySet = Set.Set Key
+data InputState = InputState {
+    keySet :: KeySet,
+    mousePos :: (GLint,GLint)
+}
 
 class Simulation a where
     display :: a -> IO a
@@ -78,12 +82,11 @@ class Simulation a where
         lighting $= Disabled
         texture Texture2D $= Enabled
     
-    reshape :: a -> IORef Camera -> ReshapeCallback
-    reshape sim cameraRef size@(Size w h) = do
+    reshape :: a -> Camera -> ReshapeCallback
+    reshape sim cam size@(Size w h) = do
         viewport $= (Position 0 0, size)
         matrixMode $= Projection
         loadIdentity
-        cam <- get cameraRef
         let
             fov = cameraFOV cam
             near = cameraNear cam
@@ -93,8 +96,11 @@ class Simulation a where
         perspective fov (w' / h') near far
         matrixMode $= Modelview 0
     
-    navigation :: a -> KeySet -> GLmatrix GLdouble -> IO (GLmatrix GLdouble)
-    navigation sim keys mat = do
+    navigation :: a -> InputState -> GLmatrix GLdouble -> IO (GLmatrix GLdouble)
+    navigation sim input mat = do
+        let
+            keys = keySet input
+            pos = mousePos input
         return $ foldl (\m k -> keyf k m) mat $ Set.elems keys
             where
                 dv = 0.1
@@ -107,6 +113,9 @@ class Simulation a where
     keyboard :: a -> KeyboardMouseCallback
     keyboard sim key keyState modifiers pos = return ()
     
+    mouseMove :: a -> MotionCallback
+    mouseMove sim pos = return ()
+    
     runSimulation :: a -> IO ()
     runSimulation sim = do
         (_, argv) <- getArgsAndInitialize
@@ -114,29 +123,45 @@ class Simulation a where
         initDisplay sim
         
         simRef <- newIORef sim
-        cameraRef <- newIORef =<< initCamera sim
-        keySetRef <- newIORef Set.empty
+        inputRef <- newIORef $ InputState {
+            keySet = Set.empty,
+            mousePos = (0,0)
+        }
+        
+        camera <- initCamera sim
+        cameraRef <- newIORef camera
+        reshapeCallback $= Just (reshape sim camera)
         
         actionOnWindowClose $= MainLoopReturns -- ghci stays running
+        
+        -- bind passive motion callback for mouse movement
+        (passiveMotionCallback $=) . Just $ \pos -> do
+            let Position posX posY = pos
+            inputRef $~ \i -> i { mousePos = (posX,posY) }
+            sim <- get simRef
+            mouseMove sim pos
+        
+        -- bind keyboard callback
         (keyboardMouseCallback $=) . Just $
             \key keyState modifiers pos -> do
                 when (key == Char '\27') leaveMainLoop -- esc
                 -- update key set
-                (keySetRef $~) $ case keyState of
-                    Down -> Set.insert key
-                    Up -> Set.delete key
+                inputRef $~ \i -> i {
+                    keySet = ($ keySet i) $ case keyState of
+                        Down -> Set.insert key
+                        Up -> Set.delete key
+                }
                 -- run user callback
+                sim <- get simRef
                 keyboard sim key keyState modifiers pos
-        
-        reshapeCallback $= Just (reshape sim cameraRef)
         
         -- navigation gets its own thread with regular updates
         forkIO $ forever $ do
             t' <- elapsed $ do
                 sim <- get simRef
                 cam <- get cameraRef
-                keys <- get keySetRef
-                mat <- navigation sim keys (cameraMatrix cam)
+                input <- get inputRef
+                mat <- navigation sim input (cameraMatrix cam)
                 cameraRef $= cam { cameraMatrix = mat }
             let t = max 0.0 (0.01 - t')
             -- ~(1/100) seconds between updates
