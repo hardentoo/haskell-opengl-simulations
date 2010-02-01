@@ -40,7 +40,8 @@ class Simulation a where
         cameraNear = 0.1,
         cameraFar = 100000,
         cameraMatrix = unsafePerformIO $ buildMatrix $ do
-            translate $ vec3f 0 (-10) 5
+            rotate 90.0 $ vec3f 1 0 0 -- z-up
+            translate $ vec3f 0 (-4) 2
     }
     
     initModes :: a -> [ DisplayMode ]
@@ -113,6 +114,9 @@ class Simulation a where
             sim <- get simRef
             clearColor $= (winBG $ window sim)
             clear [ ColorBuffer, DepthBuffer ]
+            
+            loadIdentity
+            multMatrix $ cameraMatrix $ camera sim
             
             (simRef $=) =<< display sim
             
