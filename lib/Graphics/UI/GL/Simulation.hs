@@ -31,7 +31,8 @@ data Camera = Camera {
 type KeySet = Set.Set Key
 data InputState = InputState {
     keySet :: KeySet,
-    mousePos :: (GLint,GLint)
+    mousePos :: (GLint,GLint),
+    prevMousePos :: (GLint,GLint)
 }
 
 class Simulation a where
@@ -96,19 +97,27 @@ class Simulation a where
         perspective fov (w' / h') near far
         matrixMode $= Modelview 0
     
-    navigation :: a -> InputState -> GLmatrix GLdouble -> IO (GLmatrix GLdouble)
-    navigation sim input mat = do
-        let
-            keys = keySet input
-            pos = mousePos input
-        return $ foldl (\m k -> keyf k m) mat $ Set.elems keys
-            where
-                dv = 0.1
-                keyf (Char 'w') = mTranslate (vector3d 0 dv 0)
-                keyf (Char 's') = mTranslate (vector3d 0 (-dv) 0)
-                keyf (Char 'a') = mTranslate (vector3d dv 0 0)
-                keyf (Char 'd') = mTranslate (vector3d (-dv) 0 0)
-                keyf _ = id
+    navigate :: a -> InputState -> GLmatrix GLdouble -> IO (GLmatrix GLdouble)
+    navigate sim input mat = return mat' where
+        keys = keySet input
+        pos = mousePos input
+        prevPos = prevMousePos input
+        
+        mat' :: GLmatrix GLdouble
+        mat' = foldl (\m k -> keyf k m) mat $ Set.elems keys
+        
+        dt = 0.1
+        drx = 0.1 * (fromIntegral $ fst pos - fst prevPos)
+        dry = 0.1 * (fromIntegral $ snd pos - snd prevPos)
+                
+        keyf :: Key -> GLmatrix GLdouble -> GLmatrix GLdouble
+        keyf (Char 'w') = mTranslate (vector3d 0 dt 0)
+        keyf (Char 's') = mTranslate (vector3d 0 (-dt) 0)
+        keyf (Char 'a') = mTranslate (vector3d dt 0 0)
+        keyf (Char 'd') = mTranslate (vector3d (-dt) 0 0)
+        keyf (MouseButton LeftButton) =
+            mRotate drx (vector3d 1 0 0) . mRotate dry (vector3d 0 0 1)
+        keyf _ = id
     
     keyboard :: a -> KeyboardMouseCallback
     keyboard sim key keyState modifiers pos = return ()
@@ -125,7 +134,8 @@ class Simulation a where
         simRef <- newIORef sim
         inputRef <- newIORef $ InputState {
             keySet = Set.empty,
-            mousePos = (0,0)
+            mousePos = (0,0),
+            prevMousePos = (0,0)
         }
         
         camera <- initCamera sim
@@ -137,7 +147,10 @@ class Simulation a where
         -- bind passive motion callback for mouse movement
         (passiveMotionCallback $=) . Just $ \pos -> do
             let Position posX posY = pos
-            inputRef $~ \i -> i { mousePos = (posX,posY) }
+            inputRef $~ \i -> i {
+                prevMousePos = mousePos i,
+                mousePos = (posX,posY)
+            }
             sim <- get simRef
             mouseMove sim pos
         
@@ -161,12 +174,13 @@ class Simulation a where
                 sim <- get simRef
                 cam <- get cameraRef
                 input <- get inputRef
-                mat <- navigation sim input (cameraMatrix cam)
+                mat <- navigate sim input (cameraMatrix cam)
                 cameraRef $= cam { cameraMatrix = mat }
             let t = max 0.0 (0.01 - t')
             -- ~(1/100) seconds between updates
             threadDelay $ floor (t * 1e6)
         
+        -- run display callback with helper stuff
         displayCallback $= do
             sim <- get simRef
             clearColor $= (winBG $ window sim)
