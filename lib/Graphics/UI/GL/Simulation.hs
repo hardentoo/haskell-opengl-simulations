@@ -1,7 +1,7 @@
 -- easily extensible GL simulation application with reasonable defaults
 module Graphics.UI.GL.Simulation where
 import Graphics.UI.GLUT
-import Data.Matrix.GL (vec3f,buildMatrix)
+import Data.Matrix.GL (vector3f,buildMatrix)
 
 import System.IO.Unsafe (unsafePerformIO)
 import Data.IORef (IORef,newIORef)
@@ -40,8 +40,8 @@ class Simulation a where
         cameraNear = 0.1,
         cameraFar = 100000,
         cameraMatrix = unsafePerformIO $ buildMatrix $ do
-            rotate 90.0 $ vec3f 1 0 0 -- z-up
-            translate $ vec3f 0 (-4) 2
+            rotate 90.0 $ vector3f 1 0 0 -- z-up
+            translate $ vector3f 0 (-4) 2
     }
     
     initModes :: a -> [ DisplayMode ]
