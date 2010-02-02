@@ -51,7 +51,7 @@ class Simulation a where
     initCamera sim = do
         m <- newMatrix $ translate $ vector3f 0 (-4) 2
         return $ Camera {
-            cameraFOV = 70,
+            cameraFOV = 60,
             cameraNear = 0.1,
             cameraFar = 100000,
             cameraMatrix = m

@@ -4,6 +4,7 @@ module Main where
 import Graphics.UI.GL.Simulation
 import Control.GL.Shader (newProg,here)
 import Control.Monad (forM_)
+import Data.IORef (IORef,newIORef)
 
 data SphereSim = SphereSim {
     simTheta :: GLfloat,
@@ -15,20 +16,27 @@ instance Simulation SphereSim where
         color3fM 0.8 0.8 1 >> drawFloor
         
         let theta = simTheta sim
+        
+        currentProgram $= Just (simShader sim)
         preservingMatrix $ do
             color3fM 0 1 1
             rotate theta $ vector3f 0 0 1
             renderObject Solid $ Sphere' 1 6 6
+        currentProgram $= Nothing
+        
         return sim { simTheta = theta + 0.1 }
     
     initSimulation sim = do
         prog <- newProg [$here|
-            int main() {
-                /* vertex shader */
+            void main() {
+                // -- vertex shader
+                vec4 mv = gl_ModelViewMatrix * gl_Vertex;
+                gl_Position = gl_ProjectionMatrix * mv;
             }
         |] [$here|
-            int main() {
-                /* fragment shader */
+            void main() {
+                // -- fragment shader
+                gl_FragColor = vec4(1,0,0,1);
             }
         |]
         return $ sim { simShader = prog }
