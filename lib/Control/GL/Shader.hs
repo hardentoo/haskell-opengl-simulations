@@ -1,6 +1,6 @@
 {-# LANGUAGE QuasiQuotes #-} 
 module Control.GL.Shader (
-    here, newProg
+    here, newProgram, withProgram
 ) where
 import Graphics.UI.GLUT
 import Control.Monad
@@ -13,8 +13,8 @@ here :: QuasiQuoter -- heredocs
 here = QuasiQuoter (litE . stringL) (litP . stringL) 
 
 -- create a program from vertex and fragment shader sources
-newProg :: String -> String -> IO Program
-newProg vertexSrc fragSrc = do
+newProgram :: String -> String -> IO Program
+newProgram vertexSrc fragSrc = do
     vShader <- compile vertexSrc
     fShader <- compile fragSrc
     
@@ -26,6 +26,12 @@ newProg vertexSrc fragSrc = do
     unless ok $ do
         putStrLn =<< (get $ programInfoLog prog)
     return prog
+
+withProgram :: Program -> IO () -> IO ()
+withProgram prog m = do
+    currentProgram $= Just prog
+    m
+    currentProgram $= Nothing
 
 compile :: Shader s => String -> IO s
 compile src = do

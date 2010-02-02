@@ -2,7 +2,7 @@
 {-# LANGUAGE QuasiQuotes #-}
 module Main where
 import Graphics.UI.GL.Simulation
-import Control.GL.Shader (newProg,here)
+import Control.GL.Shader (newProgram,withProgram,here)
 import Control.Monad (forM_)
 import Data.IORef (IORef,newIORef)
 
@@ -17,17 +17,15 @@ instance Simulation SphereSim where
         
         let theta = simTheta sim
         
-        currentProgram $= Just (simShader sim)
-        preservingMatrix $ do
+        withProgram (simShader sim) $ preservingMatrix $ do
             color3fM 0 1 1
             rotate theta $ vector3f 0 0 1
             renderObject Solid $ Sphere' 1 6 6
-        currentProgram $= Nothing
         
         return sim { simTheta = theta + 0.1 }
     
     initSimulation sim = do
-        prog <- newProg [$here|
+        prog <- newProgram [$here|
             void main() {
                 // -- vertex shader
                 vec4 mv = gl_ModelViewMatrix * gl_Vertex;
