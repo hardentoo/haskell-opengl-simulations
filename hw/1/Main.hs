@@ -2,7 +2,7 @@
 {-# LANGUAGE QuasiQuotes #-} -- for heredocs
 module Main where
 import Graphics.UI.GL.Simulation
-import Control.GL.Shader (newProgram,withProgram,here)
+import Control.GL.Shader (newProgram,withProgram,bindProgram,here)
 import Control.Monad (forM_)
 import Data.IORef (IORef,newIORef)
 
@@ -12,11 +12,12 @@ data SphereSim = SphereSim {
 }
 
 instance Simulation SphereSim where
-    display sim = runWithFPS 60 $ do
+    display sim = runAtFPS 60 $ do
+        let theta = simTheta sim; prog = simShader sim
         color3fM 0.8 0.8 1 >> drawFloor
         
-        let theta = simTheta sim
-        withProgram (simShader sim) $ preservingMatrix $ do
+        bindProgram prog "spherePos" $ vertex3f 0 0 0
+        withProgram prog $ preservingMatrix $ do
             color3fM 0 1 1
             rotate theta $ vector3f 0 0 1
             renderObject Solid $ Sphere' 1 6 6
@@ -26,11 +27,11 @@ instance Simulation SphereSim where
     initSimulation sim = do
         prog <- newProgram [$here|
             // -- vertex shader
+            uniform vec3 spherePos;
             varying vec3 pos;
             void main() {
-                vec4 mv = gl_ModelViewMatrix * gl_Vertex;
-                pos = vec3(mv);
-                gl_Position = gl_ProjectionMatrix * mv;
+                pos = vec3(gl_Vertex) + spherePos;
+                gl_Position = gl_ProjectionMatrix * gl_Vertex * pos;
             }
         |] [$here|
             // -- fragment shader

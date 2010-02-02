@@ -1,9 +1,10 @@
 {-# LANGUAGE QuasiQuotes #-} 
 module Control.GL.Shader (
-    here, newProgram, withProgram
+    here, newProgram, withProgram, bindProgram
 ) where
 import Graphics.UI.GLUT
-import Control.Monad
+import Control.Monad (when,unless)
+import Data.Maybe (isJust,fromJust)
 
 import Language.Haskell.TH.Quote 
 import Language.Haskell.TH.Syntax 
@@ -25,6 +26,7 @@ newProgram vertexSrc fragSrc = do
     ok <- get $ linkStatus prog
     unless ok $ do
         putStrLn =<< (get $ programInfoLog prog)
+        exitApp "Shader failed to compile"
     return prog
 
 -- bind uniform variables to a program object
@@ -51,4 +53,13 @@ compile src = do
     ok <- get $ compileStatus shader
     unless ok $ do
         putStrLn =<< (get $ shaderInfoLog shader)
+        exitApp "Shader failed to compile"
     return shader
+
+-- exit opengl app (hidden)
+exitApp :: String -> IO ()
+exitApp msg = do
+    leaveMainLoop
+    win <- get currentWindow
+    when (isJust win) $ destroyWindow (fromJust win)
+    fail msg

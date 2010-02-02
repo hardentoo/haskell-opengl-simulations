@@ -1,6 +1,9 @@
 {-# LANGUAGE MultiParamTypeClasses, FlexibleInstances #-}
 
-module Data.GL.Vector where
+module Data.GL.Vector (
+    Vector(..), dot,
+    vector3f, vector3d, vertex3f, vertex3d, color3f, color3d
+) where
 import Graphics.UI.GLUT
 
 class Num a => Vector t a where
@@ -9,7 +12,7 @@ class Num a => Vector t a where
     
     fromVector :: t a -> [a]
     toVector :: [a] -> t a
-
+    
 -- alias for <.>
 dot :: (Vector t a) => t a -> t a -> a
 dot = (<.>)
