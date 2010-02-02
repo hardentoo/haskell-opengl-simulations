@@ -1,5 +1,5 @@
 -- navigation and spheres
-{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE QuasiQuotes #-} -- for heredocs
 module Main where
 import Graphics.UI.GL.Simulation
 import Control.GL.Shader (newProgram,withProgram,here)
@@ -16,7 +16,6 @@ instance Simulation SphereSim where
         color3fM 0.8 0.8 1 >> drawFloor
         
         let theta = simTheta sim
-        
         withProgram (simShader sim) $ preservingMatrix $ do
             color3fM 0 1 1
             rotate theta $ vector3f 0 0 1
@@ -26,15 +25,24 @@ instance Simulation SphereSim where
     
     initSimulation sim = do
         prog <- newProgram [$here|
+            // -- vertex shader
+            varying vec3 pos;
             void main() {
-                // -- vertex shader
                 vec4 mv = gl_ModelViewMatrix * gl_Vertex;
+                pos = vec3(mv);
                 gl_Position = gl_ProjectionMatrix * mv;
             }
         |] [$here|
+            // -- fragment shader
+            varying vec3 pos;
             void main() {
-                // -- fragment shader
-                gl_FragColor = vec4(1,0,0,1);
+                float dd = pos.x * pos.x + pos.y * pos.y + pos.z * pos.z;
+                if (dd > 4 * 4) {
+                    gl_FragColor = vec4(1,0,0,1);
+                }
+                else {
+                    gl_FragColor = vec4(0,1,0,1);
+                }
             }
         |]
         return $ sim { simShader = prog }

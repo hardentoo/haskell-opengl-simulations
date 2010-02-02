@@ -27,17 +27,24 @@ newProgram vertexSrc fragSrc = do
         putStrLn =<< (get $ programInfoLog prog)
     return prog
 
+-- bind uniform variables to a program object
+bindProgram :: Uniform a => Program -> String -> a -> IO ()
+bindProgram prog key value = do
+    location <- get $ uniformLocation prog key
+    reportErrors
+    uniform location $= value
+
+-- run a shader over some stateful operations
 withProgram :: Program -> IO () -> IO ()
 withProgram prog m = do
     currentProgram $= Just prog
     m
     currentProgram $= Nothing
 
+-- compile a shader from source (hidden)
 compile :: Shader s => String -> IO s
 compile src = do
-    putStrLn "compile begin"
     [shader] <- genObjectNames 1
-    putStrLn "generated"
     shaderSource shader $= [src]
     compileShader shader
     reportErrors
