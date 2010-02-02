@@ -81,6 +81,9 @@ class Simulation a where
         lighting $= Disabled
         texture Texture2D $= Enabled
     
+    initSimulation :: a -> IO a
+    initSimulation = return
+    
     reshape :: a -> Camera -> ReshapeCallback
     reshape sim cam size@(Size w h) = do
         viewport $= (Position 0 0, size)
@@ -118,6 +121,8 @@ class Simulation a where
             keyf (Char 'e') = mTranslate (vector3d 0 0 (-dt)) -- down
             keyf (MouseButton LeftButton) =
                 mRotate dry (vector3d 1 0 0) . mRotate drx (vector3d 0 0 1)
+            keyf (MouseButton RightButton) =
+                mRotate drx (vector3d 0 1 0)
             keyf _ = id
     
     keyboard :: a -> KeyboardMouseCallback
@@ -127,10 +132,11 @@ class Simulation a where
     mouseMove sim pos = return ()
     
     runSimulation :: a -> IO ()
-    runSimulation sim = do
+    runSimulation sim' = do
         (_, argv) <- getArgsAndInitialize
-        initWindow sim
-        initDisplay sim
+        initWindow sim'
+        initDisplay sim'
+        sim <- initSimulation sim'
         
         simRef <- newIORef sim
         inputRef <- newIORef $ InputState {

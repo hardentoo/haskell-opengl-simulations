@@ -30,7 +30,9 @@ newProg vertexSrc fragSrc = do
 
 compile :: Shader s => String -> IO s
 compile src = do
+    putStrLn "compile begin"
     [shader] <- genObjectNames 1
+    putStrLn "generated"
     shaderSource shader $= [src]
     compileShader shader
     reportErrors
