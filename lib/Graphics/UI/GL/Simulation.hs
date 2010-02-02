@@ -3,7 +3,7 @@ module Graphics.UI.GL.Simulation (
     module Data.GL,
     module Graphics.UI.GLUT,
     Simulation(..), SimWindow(..), Camera(..), KeySet,
-    runAtFPS
+    runAtFPS, runWithFPS, elapsed
 ) where
 import Graphics.UI.GLUT hiding (Matrix,newMatrix)
 import Data.GL
@@ -12,6 +12,8 @@ import Data.Time.Clock (getCurrentTime, diffUTCTime)
 import System.IO.Unsafe (unsafePerformIO)
 import Data.IORef (IORef,newIORef)
 import Control.Monad (when,forever)
+import Control.Arrow (first)
+import Control.Applicative ((<$>))
 import qualified Data.Set as Set
 import Control.Concurrent (forkIO,threadDelay)
 
@@ -228,3 +230,7 @@ runAtFPS fps m = do
     let t = recip fps - t'
     when (t > 0) $ threadDelay $ floor (t * 1e6)
     return result
+
+-- run an action, returning the frames per second along with the result
+runWithFPS :: (Floating a, RealFrac a) => IO b -> IO (a,b)
+runWithFPS = (first recip <$>) . elapsed
