@@ -16,9 +16,10 @@ instance Simulation SphereSim where
         let theta = simTheta sim; prog = simShader sim
         color3fM 0.8 0.8 1 >> drawFloor
         
-        bindProgram prog "spherePos" $ vertex3f 0 0 0
+        bindProgram prog "spherePos" $ vertex3f 0 (-5) 0
         withProgram prog $ preservingMatrix $ do
             color3fM 0 1 1
+            translate $ vector3f 0 (-5) 0
             rotate theta $ vector3f 0 0 1
             renderObject Solid $ Sphere' 1 6 6
         
@@ -27,17 +28,19 @@ instance Simulation SphereSim where
     initSimulation sim = do
         prog <- newProgram [$here|
             // -- vertex shader
-            uniform vec3 spherePos;
             varying vec3 pos;
             void main() {
-                pos = vec3(gl_Vertex) + spherePos;
-                gl_Position = gl_ProjectionMatrix * gl_Vertex * pos;
+                vec4 mv = gl_ModelViewMatrix * gl_Vertex;
+                pos = vec3(mv);
+                gl_Position = gl_ProjectionMatrix * mv;
             }
         |] [$here|
             // -- fragment shader
+            uniform vec3 spherePos;
             varying vec3 pos;
             void main() {
-                float dd = pos.x * pos.x + pos.y * pos.y + pos.z * pos.z;
+                vec3 p = pos + spherePos;
+                float dd = p.x * p.x + p.y * p.y + p.z * p.z;
                 if (dd > 4 * 4) {
                     gl_FragColor = vec4(1,0,0,1);
                 }
