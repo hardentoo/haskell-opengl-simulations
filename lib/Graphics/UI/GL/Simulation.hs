@@ -2,7 +2,8 @@
 module Graphics.UI.GL.Simulation (
     module Data.GL,
     module Graphics.UI.GLUT,
-    Simulation(..), SimWindow(..), Camera(..), KeySet
+    Simulation(..), SimWindow(..), Camera(..), KeySet,
+    runAtFPS
 ) where
 import Graphics.UI.GLUT hiding (Matrix,newMatrix)
 import Data.GL
@@ -180,17 +181,13 @@ class Simulation a where
                 keyboard sim key keyState modifiers pos
         
         -- navigation gets its own thread with regular updates
-        forkIO $ forever $ do
-            t' <- elapsed $ do
-                sim <- get simRef
-                cam <- get cameraRef
-                input <- get inputRef
-                mat <- navigate sim input (cameraMatrix cam)
-                cameraRef $= cam { cameraMatrix = mat }
-                inputRef $~ \i -> i { prevMousePos = mousePos input }
-            let t = max 0.0 (0.01 - t')
-            -- ~(1/100) seconds between updates
-            threadDelay $ floor (t * 1e6)
+        forkIO $ forever $ runAtFPS 100 $ do
+            sim <- get simRef
+            cam <- get cameraRef
+            input <- get inputRef
+            mat <- navigate sim input (cameraMatrix cam)
+            cameraRef $= cam { cameraMatrix = mat }
+            inputRef $~ \i -> i { prevMousePos = mousePos input }
         
         -- run display callback with helper stuff
         displayCallback $= do
@@ -198,7 +195,9 @@ class Simulation a where
             clearColor $= (winBG $ window sim)
             clear [ ColorBuffer, DepthBuffer ]
             
+            matrixMode $= Modelview 0
             loadIdentity
+            
             rotate 90.0 $ vector3f 1 0 0 -- z-up
             
             cam <- get cameraRef
@@ -213,9 +212,19 @@ class Simulation a where
         mainLoop
 
 -- elapsed time to run the supplied action in seconds
-elapsed :: Floating a => IO () -> IO a
+elapsed :: Floating a => IO b -> IO (a,b)
 elapsed m = do
     t1 <- getCurrentTime
-    m
+    result <- m
     t2 <- getCurrentTime
-    return $ fromRational $ toRational $ diffUTCTime t1 t2
+    let t = fromRational $ toRational $ diffUTCTime t1 t2
+    return (t,result)
+
+-- run an action at a number of frames per second, if possible
+-- if not enough time has elapsed, waits until fps is achieved
+runAtFPS :: (Floating a, RealFrac a) => a -> IO b -> IO b
+runAtFPS fps m = do
+    (t',result) <- elapsed m
+    let t = recip fps - t'
+    when (t > 0) $ threadDelay $ floor (t * 1e6)
+    return result

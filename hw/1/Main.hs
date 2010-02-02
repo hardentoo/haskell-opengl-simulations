@@ -12,7 +12,7 @@ data SphereSim = SphereSim {
 }
 
 instance Simulation SphereSim where
-    display sim = do
+    display sim = runAtFPS 60 $ do
         color3fM 0.8 0.8 1 >> drawFloor
         
         let theta = simTheta sim
