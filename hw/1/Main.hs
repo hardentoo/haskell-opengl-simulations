@@ -23,9 +23,13 @@ instance Simulation SphereSim where
     
     initSimulation sim = do
         prog <- newProg [$here|
-            // vertex shader
+            int main() {
+                /* vertex shader */
+            }
         |] [$here|
-            // fragment shader
+            int main() {
+                /* fragment shader */
+            }
         |]
         return $ sim { simShader = prog }
 

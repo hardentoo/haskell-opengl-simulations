@@ -24,8 +24,7 @@ newProg vertexSrc fragSrc = do
     reportErrors
     ok <- get $ linkStatus prog
     unless ok $ do
-        infoLog <- get $ programInfoLog prog
-        fail $ show infoLog
+        putStrLn =<< (get $ programInfoLog prog)
     return prog
 
 compile :: Shader s => String -> IO s
@@ -38,6 +37,5 @@ compile src = do
     reportErrors
     ok <- get $ compileStatus shader
     unless ok $ do
-        infoLog <- get $ shaderInfoLog shader
-        fail $ show infoLog
+        putStrLn =<< (get $ shaderInfoLog shader)
     return shader
