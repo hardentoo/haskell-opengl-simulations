@@ -49,9 +49,7 @@ class Simulation a where
     
     initCamera :: a -> IO Camera
     initCamera sim = do
-        m <- newMatrix $ do
-            rotate 90.0 $ vector3f 1 0 0 -- z-up
-            translate $ vector3f 0 (-4) 2
+        m <- newMatrix $ translate $ vector3f 0 (-4) 2
         return $ Camera {
             cameraFOV = 70,
             cameraNear = 0.1,
@@ -109,15 +107,17 @@ class Simulation a where
             
             dt = 0.1
             drx = 0.1 * (fromIntegral $ fst pos - fst prevPos)
-            dry = 0.1 * (fromIntegral $ snd pos - snd prevPos)
+            dry = -0.1 * (fromIntegral $ snd pos - snd prevPos)
             
             keyf :: Key -> GLmatrix GLdouble -> GLmatrix GLdouble
-            keyf (Char 'w') = mTranslate (vector3d 0 0 dt)
-            keyf (Char 's') = mTranslate (vector3d 0 0 (-dt))
-            keyf (Char 'a') = mTranslate (vector3d dt 0 0)
-            keyf (Char 'd') = mTranslate (vector3d (-dt) 0 0)
+            keyf (Char 'w') = mTranslate (vector3d 0 dt 0) -- forward
+            keyf (Char 's') = mTranslate (vector3d 0 (-dt) 0) -- back
+            keyf (Char 'a') = mTranslate (vector3d dt 0 0) -- strafe left
+            keyf (Char 'd') = mTranslate (vector3d (-dt) 0 0) -- strafe right
+            keyf (Char 'q') = mTranslate (vector3d 0 0 dt) -- up
+            keyf (Char 'e') = mTranslate (vector3d 0 0 (-dt)) -- down
             keyf (MouseButton LeftButton) =
-                mRotate dry (vector3d 1 0 0) . mRotate drx (vector3d 0 1 0)
+                mRotate dry (vector3d 1 0 0) . mRotate drx (vector3d 0 0 1)
             keyf _ = id
     
     keyboard :: a -> KeyboardMouseCallback
@@ -193,6 +193,8 @@ class Simulation a where
             clear [ ColorBuffer, DepthBuffer ]
             
             loadIdentity
+            rotate 90.0 $ vector3f 1 0 0 -- z-up
+            
             cam <- get cameraRef
             multMatrix $ cameraMatrix cam
             
