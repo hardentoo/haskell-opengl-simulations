@@ -16,10 +16,10 @@ instance Simulation SphereSim where
         let theta = simTheta sim; prog = simShader sim
         color3fM 0.8 0.8 1 >> drawFloor
         
-        bindProgram prog "spherePos" $ vertex3f 0 (-5) 0
+        bindProgram prog "spherePos" $ vertex3f 0 (-2) 0
         withProgram prog $ preservingMatrix $ do
             color3fM 0 1 1
-            translate $ vector3f 0 (-5) 0
+            translate $ vector3f 0 (-2) 0
             rotate theta $ vector3f 0 0 1
             renderObject Solid $ Sphere' 1 6 6
         
@@ -28,25 +28,31 @@ instance Simulation SphereSim where
     initSimulation sim = do
         prog <- newProgram [$here|
             // -- vertex shader
-            varying vec3 pos;
+            varying vec3 cameraPos;
             void main() {
                 vec4 mv = gl_ModelViewMatrix * gl_Vertex;
-                pos = vec3(mv);
+                cameraPos = vec3(gl_ModelViewMatrix * vec4(0,0,0,1));
                 gl_Position = gl_ProjectionMatrix * mv;
             }
         |] [$here|
             // -- fragment shader
             uniform vec3 spherePos;
-            varying vec3 pos;
+            varying vec3 cameraPos;
             void main() {
-                vec3 p = pos + spherePos;
-                float dd = p.x * p.x + p.y * p.y + p.z * p.z;
-                if (dd > 4 * 4) {
-                    gl_FragColor = vec4(1,0,0,1);
-                }
-                else {
-                    gl_FragColor = vec4(0,1,0,1);
-                }
+                vec3 ray = normalize(spherePos - cameraPos);
+                // solve for the intersection of the ray with the sphere
+                // mathematics shamelessly lifted from lecture notes
+                float r = 0.6;
+                float a = dot(ray,ray);
+                float b = 2.0*dot(ray,cameraPos);
+                float c = dot(cameraPos,cameraPos)-r*r;
+                float det = b*b-4.0*a*c;
+                if (det<0.0) discard;
+                float t = (-b-sqrt(det))/(2.0*a);
+                
+                vec3 pos = cameraPos + t * ray;
+                
+                gl_FragColor = vec4(ray,1);
             }
         |]
         return $ sim { simShader = prog }
