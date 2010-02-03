@@ -32,9 +32,8 @@ data Camera = Camera {
     cameraNear :: GLdouble,
     cameraFar :: GLdouble,
     cameraPos :: Vertex3 GLdouble,
-    cameraEye :: Vertex3 GLdouble
-    -- no roll
-}
+    cameraTarget :: Vertex3 GLdouble
+} deriving Show
 
 type KeySet = Set.Set Key
 data InputState = InputState {
@@ -63,8 +62,8 @@ class Simulation a where
         cameraFOV = 60,
         cameraNear = 0.1,
         cameraFar = 100000,
-        cameraPos = vertex3d 0 (-2) 4,
-        cameraEye = vertex3d 0 0 1
+        cameraPos = vertex3d 0 2 4,
+        cameraTarget = vertex3d 0 0 1
     }
     
     initModes :: a -> [ DisplayMode ]
@@ -108,8 +107,8 @@ class Simulation a where
         perspective fov (w' / h') near far
         matrixMode $= Modelview 0
     
-    navigate :: a -> InputState -> Camera -> IO Camera
-    navigate sim input cam = return cam'
+    navigate :: a -> InputState -> Camera -> Camera
+    navigate sim input cam = cam'
         where
             keys = keySet input
             pos = mousePos input
@@ -118,12 +117,12 @@ class Simulation a where
             cam' = foldl (\m k -> keyf k m) cam $ Set.elems keys
             
             dt = 0.1
-            drx = -0.1 * (fromIntegral $ fst pos - fst prevPos)
-            dry = -0.1 * (fromIntegral $ snd pos - snd prevPos)
+            drx = -0.01 * (fromIntegral $ fst pos - fst prevPos)
+            dry = 0.01 * (fromIntegral $ snd pos - snd prevPos)
             
             fpos f c = c { cameraPos = f $ cameraPos c }
-            mix f v1 v2 = v1 <+> (f *> (v2 <-> v1))
-            feye f c = c { cameraEye = f $ cameraEye c }
+            mix f v1 v2 = v2 <+> (f *> (v1 <-> v2))
+            ft f c = c { cameraTarget = f $ cameraTarget c }
             
             keyf :: Key -> Camera -> Camera
             keyf (Char 'w') = fpos (<+> (vertex3d 0 0 dt)) -- forward
@@ -133,7 +132,7 @@ class Simulation a where
             keyf (Char 'q') = fpos (<+> (vertex3d 0 dt 0)) -- up
             keyf (Char 'e') = fpos (<+> (vertex3d 0 (-dt) 0)) -- down
             keyf (MouseButton LeftButton) =
-                feye (mix drx (vertex3d 0 0 1) . mix dry (vertex3d 1 0 0))
+                ft (mix drx (vertex3d 0 0 1) . mix dry (vertex3d 1 0 0))
             keyf _ = id
     
     keyboard :: a -> KeyboardMouseCallback
@@ -193,11 +192,8 @@ class Simulation a where
         -- navigation gets its own thread with regular updates
         forkIO $ forever $ runAtFPS 100 $ do
             sim <- get simRef
-            cam <- get cameraRef
             input <- get inputRef
-            
-            cam' <- navigate sim input cam
-            cameraRef $= cam'
+            cameraRef $~ navigate sim input
             inputRef $~ \i -> i { prevMousePos = mousePos input }
         
         -- run display callback with helper stuff
@@ -205,13 +201,17 @@ class Simulation a where
             sim <- get simRef
             clearColor $= (winBG $ window sim)
             clear [ ColorBuffer, DepthBuffer ]
-            
+           
             matrixMode $= Modelview 0
             loadIdentity
             
             cam <- get cameraRef
-            let eye = cameraEye cam; pos = cameraPos cam
-            lookAt pos (eye <+> pos) $ vector3d 0 0 1
+            let
+                target = cameraTarget cam; pos = cameraPos cam
+                Vertex3 px py pz = pos
+                up = vector3d 0 0 1
+            lookAt pos (pos <-> target) up
+            print (pos,target,up)
             
             --rotate 90.0 $ vector3f 1 0 0 -- z-up
             

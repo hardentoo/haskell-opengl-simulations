@@ -10,6 +10,8 @@ class Real a => Vector t a where
     (<.>) :: t a -> t a -> a -- dot product
     v1 <.> v2 = sum $ zipWith (*) (fromVector v1) (fromVector v2)
     
+    (<^>) :: t a -> t a -> t a -- cross product
+    
     (*>) :: a -> t a -> t a -- left scalar multiply
     f *> v = toVector $ map (*f) $ fromVector v
     (<*) :: t a -> a -> t a -- right scalar multiply
@@ -36,16 +38,32 @@ dot = (<.>)
 instance Real a => Vector Vector3 a where
     (Vector3 x1 y1 z1) <.> (Vector3 x2 y2 z2) = 
         (x1 * x2) + (y1 * y2) + (z1 * z2)
+    
+    (Vector3 x1 y1 z1) <^> (Vector3 x2 y2 z2) = Vector3 x y z
+        where
+            x = (y1 * z2 - y1 * z2)
+            y = (z1 * x2 - x1 * z2)
+            z = (x1 * y2 - y1 * x2)
+    
     (Vector3 x1 y1 z1) <+> (Vector3 x2 y2 z2) = 
         Vector3 (x1 + x2) (y1 + y2) (z1 + z2)
+    
     fromVector (Vector3 x y z) = [x,y,z]
     toVector (x:y:z:_) = Vector3 x y z
     
 instance Real a => Vector Vertex3 a where
     (Vertex3 x1 y1 z1) <.> (Vertex3 x2 y2 z2) = 
         (x1 * x2) + (y1 * y2) + (z1 * z2)
+    
+    (Vertex3 x1 y1 z1) <^> (Vertex3 x2 y2 z2) = Vertex3 x y z
+        where
+            x = (y1 * z2 - y1 * z2)
+            y = (z1 * x2 - x1 * z2)
+            z = (x1 * y2 - y1 * x2)
+    
     (Vertex3 x1 y1 z1) <+> (Vertex3 x2 y2 z2) = 
         Vertex3 (x1 + x2) (y1 + y2) (z1 + z2)
+    
     fromVector (Vertex3 x y z) = [x,y,z]
     toVector (x:y:z:_) = Vertex3 x y z
 
