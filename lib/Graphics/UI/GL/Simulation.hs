@@ -130,7 +130,7 @@ class Simulation a where
             keyf (Char 'a') = mTranslate (vector3d dt 0 0) -- strafe left
             keyf (Char 'd') = mTranslate (vector3d (-dt) 0 0) -- strafe right
             keyf (Char 'q') = mTranslate (vector3d 0 dt 0) -- up
-            keyf (Char 'e') = mTranslate (vector3d 0 (-dt) 0) -- down
+            keyf (Char 'z') = mTranslate (vector3d 0 (-dt) 0) -- down
             keyf (MouseButton LeftButton) =
                 mRotate dry (vector3d 1 0 0) . mRotate (-drx) (vector3d 0 1 0)
             keyf (MouseButton RightButton) =
