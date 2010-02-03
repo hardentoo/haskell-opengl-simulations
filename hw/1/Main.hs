@@ -37,34 +37,33 @@ instance Simulation SphereSim where
             // -- fragment shader
             varying vec3 cameraPos;
             varying vec3 point;
-            const float r = 0.5; // radius
-            
-            float solve(vec3 cam, vec3 ray) {
-                // solve for the intersection of a ray with the sphere
-                // mathematics shamelessly lifted from lecture notes
-                float a = dot(ray,ray);
-                float b = 2.0 * dot(ray,cam);
-                float c = dot(cam,cam) - r * r;
-                float det = b * b - 4.0 * a * c;
-                
-                if (det < 0.0) return -1;
-                float t = (-b - sqrt(det)) / (2.0 * a);
-                return t;
-            }
             
             void main() {
+                // solve for the intersection of a ray with the sphere
+                // mathematics shamelessly lifted from lecture notes
                 vec3 ray = normalize(cameraPos - point);
-                float t = solve(cameraPos,ray);
+                float r = 0.5; // radius
+                
+                float a = dot(ray,ray);
+                float b = 2.0 * dot(ray,cameraPos);
+                float c = dot(cameraPos,cameraPos) - r * r;
+                float det = b * b - 4.0 * a * c;
+                
+                if (det < 0.0) discard;
+                float t = (-b - sqrt(det)) / (2.0 * a);
                 vec3 p = cameraPos + t * ray;
-                if (t < 0) discard;
                 if (dot(p,p) > r * r + 0.1) discard;
                 
-                vec3 pnorm = normalize(p * vec3(2,-2,2));
-                if (dot(pnorm,ray) > 0.0) pnorm *= -1;
+                /*
+                vec3 grad = normalize(p * vec3(2,-2,2));
+                if (dot(grad,ray) > 0.0) grad *= -1;
                 
                 vec3 lightSource = vec3(0,0,5);
+                float v = dot(grad,lightSource);
                 
-                float v = dot(pnorm,lightSource);
+                */
+                
+                float v = 1.0;
                 gl_FragColor = vec4(v,v,v,1);
             }
         |]
