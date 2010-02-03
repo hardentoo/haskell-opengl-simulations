@@ -60,7 +60,7 @@ class Simulation a where
     initCamera sim = do
         m <- newMatrix $ do
             rotate 30 $ vector3f 1 0 0
-            translate $ vector3f 0 (-4) 2
+            translate $ vector3f 0 (-2) (-4)
         return $ Camera {
             cameraFOV = 60,
             cameraNear = 0.1,
@@ -95,8 +95,9 @@ class Simulation a where
     initSimulation :: a -> IO a
     initSimulation = return
     
-    reshape :: a -> Camera -> ReshapeCallback
-    reshape sim cam size@(Size w h) = do
+    reshape :: a -> IORef Camera -> ReshapeCallback
+    reshape sim cameraRef size@(Size w h) = do
+        cam <- get cameraRef
         viewport $= (Position 0 0, size)
         matrixMode $= Projection
         loadIdentity
@@ -124,16 +125,16 @@ class Simulation a where
             dry = -0.05 * (fromIntegral $ snd pos - snd prevPos)
             
             keyf :: Key -> GLmatrix GLdouble -> GLmatrix GLdouble
-            keyf (Char 'w') = mTranslate (vector3d 0 dt 0) -- forward
-            keyf (Char 's') = mTranslate (vector3d 0 (-dt) 0) -- back
+            keyf (Char 'w') = mTranslate (vector3d 0 0 dt) -- forward
+            keyf (Char 's') = mTranslate (vector3d 0 0 (-dt)) -- back
             keyf (Char 'a') = mTranslate (vector3d dt 0 0) -- strafe left
             keyf (Char 'd') = mTranslate (vector3d (-dt) 0 0) -- strafe right
-            keyf (Char 'q') = mTranslate (vector3d 0 0 dt) -- up
-            keyf (Char 'e') = mTranslate (vector3d 0 0 (-dt)) -- down
+            keyf (Char 'q') = mTranslate (vector3d 0 dt 0) -- up
+            keyf (Char 'e') = mTranslate (vector3d 0 (-dt) 0) -- down
             keyf (MouseButton LeftButton) =
-                mRotate dry (vector3d 1 0 0) . mRotate drx (vector3d 0 0 1)
+                mRotate dry (vector3d 1 0 0) . mRotate (-drx) (vector3d 0 1 0)
             keyf (MouseButton RightButton) =
-                mRotate drx (vector3d 0 1 0)
+                mRotate drx (vector3d 0 0 1)
             keyf _ = id
     
     keyboard :: a -> KeyboardMouseCallback
@@ -158,7 +159,7 @@ class Simulation a where
         
         camera <- initCamera sim
         cameraRef <- newIORef camera
-        reshapeCallback $= Just (reshape sim camera)
+        reshapeCallback $= Just (reshape sim cameraRef)
         
         actionOnWindowClose $= MainLoopReturns -- ghci stays running
         
@@ -203,12 +204,24 @@ class Simulation a where
             clearColor $= (winBG $ window sim)
             clear [ ColorBuffer, DepthBuffer ]
            
+            matrixMode $= Projection
+            loadIdentity
+            cam <- get cameraRef
+            Size w h <- get windowSize
+            let
+                fov = cameraFOV cam
+                near = cameraNear cam
+                far = cameraFar cam
+                w' = fromIntegral w
+                h' = fromIntegral h
+            perspective fov (w' / h') near far
+            multMatrix $ cameraMatrix cam
+            
             matrixMode $= Modelview 0
             loadIdentity
-            rotate 90.0 $ vector3f 1 0 0 -- z-up
+            rotate (-90) $ vector3f 1 0 0 -- z-up
             
-            cam <- get cameraRef
-            multMatrix $ cameraMatrix cam
+            matrixMode $= Modelview 0
             
             (simRef $=) =<< display sim
             (simRef $=) =<< displayWithCamera sim cam
