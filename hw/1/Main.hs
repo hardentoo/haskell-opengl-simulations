@@ -95,6 +95,7 @@ drawFloor = renderPrimitive Lines $ do
 main :: IO () -- what a tiny main!
 main = do
     putStrLn "*** Haskell OpenGL Simulator Magic ***\n\
+        \    To quit, press escape.\n\
         \    Keys:\n\
         \        forward => w, back => a,\n\
         \        left => s, right => d\n\
