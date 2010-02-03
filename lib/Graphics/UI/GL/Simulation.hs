@@ -31,9 +31,8 @@ data Camera = Camera {
     cameraFOV :: GLdouble,
     cameraNear :: GLdouble,
     cameraFar :: GLdouble,
-    cameraPos :: Vector3 GLdouble,
-    cameraYaw :: GLdouble,
-    cameraPitch :: GLdouble
+    cameraPos :: Vertex3 GLdouble,
+    cameraEye :: Vertex3 GLdouble
     -- no roll
 }
 
@@ -48,6 +47,9 @@ class Simulation a where
     display :: a -> IO a
     display = return
     
+    displayWithCamera :: a -> Camera -> IO a
+    displayWithCamera sim camera = return sim
+    
     window :: a -> SimWindow
     window = const $ SimWindow {
         winTitle = "simulation",
@@ -61,9 +63,8 @@ class Simulation a where
         cameraFOV = 60,
         cameraNear = 0.1,
         cameraFar = 100000,
-        cameraPos = vector3d 0 4 (-2),
-        cameraYaw = 0.0,
-        cameraPitch = 0.0
+        cameraPos = vertex3d 0 (-2) 4,
+        cameraEye = vertex3d 0 0 1
     }
     
     initModes :: a -> [ DisplayMode ]
@@ -118,22 +119,21 @@ class Simulation a where
             
             dt = 0.1
             drx = -0.1 * (fromIntegral $ fst pos - fst prevPos)
-            dry = 0.1 * (fromIntegral $ snd pos - snd prevPos)
+            dry = -0.1 * (fromIntegral $ snd pos - snd prevPos)
             
             fpos f c = c { cameraPos = f $ cameraPos c }
-            fangle f g c = c {
-                cameraPitch = f $ cameraPitch c,
-                cameraYaw = g $ cameraYaw c
-            }
+            mix f v1 v2 = v1 <+> (f *> (v2 <-> v1))
+            feye f c = c { cameraEye = f $ cameraEye c }
             
             keyf :: Key -> Camera -> Camera
-            keyf (Char 'w') = fpos (<+> (vector3d 0 dt 0)) -- forward
-            keyf (Char 's') = fpos (<+> (vector3d 0 (-dt) 0)) -- back
-            keyf (Char 'a') = fpos (<+> (vector3d dt 0 0)) -- strafe left
-            keyf (Char 'd') = fpos (<+> (vector3d (-dt) 0 0)) -- strafe right
-            keyf (Char 'q') = fpos (<+> (vector3d 0 0 dt)) -- up
-            keyf (Char 'e') = fpos (<+> (vector3d 0 0 (-dt))) -- down
-            keyf (MouseButton LeftButton) = fangle (+ dry) (+ drx)
+            keyf (Char 'w') = fpos (<+> (vertex3d 0 0 dt)) -- forward
+            keyf (Char 's') = fpos (<+> (vertex3d 0 0 (-dt))) -- back
+            keyf (Char 'a') = fpos (<+> (vertex3d dt 0 0)) -- strafe left
+            keyf (Char 'd') = fpos (<+> (vertex3d (-dt) 0 0)) -- strafe right
+            keyf (Char 'q') = fpos (<+> (vertex3d 0 dt 0)) -- up
+            keyf (Char 'e') = fpos (<+> (vertex3d 0 (-dt) 0)) -- down
+            keyf (MouseButton LeftButton) =
+                feye (mix drx (vertex3d 0 0 1) . mix dry (vertex3d 1 0 0))
             keyf _ = id
     
     keyboard :: a -> KeyboardMouseCallback
@@ -209,14 +209,14 @@ class Simulation a where
             matrixMode $= Modelview 0
             loadIdentity
             
-            rotate 90.0 $ vector3f 1 0 0 -- z-up
-            
             cam <- get cameraRef
-            translate $ cameraPos cam
-            rotate (cameraYaw cam) $ vector3d 0 0 1
-            rotate (cameraPitch cam) $ vector3d 1 0 0
+            let eye = cameraEye cam; pos = cameraPos cam
+            lookAt pos (eye <+> pos) $ vector3d 0 0 1
+            
+            --rotate 90.0 $ vector3f 1 0 0 -- z-up
             
             (simRef $=) =<< display sim
+            (simRef $=) =<< displayWithCamera sim cam
             
             flush
             swapBuffers

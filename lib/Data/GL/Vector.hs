@@ -6,11 +6,25 @@ module Data.GL.Vector (
 ) where
 import Graphics.UI.GLUT
 
-class Num a => Vector t a where
+class Real a => Vector t a where
     (<.>) :: t a -> t a -> a -- dot product
-    (<+>) :: t a -> t a -> t a -- vector addition
     v1 <.> v2 = sum $ zipWith (*) (fromVector v1) (fromVector v2)
+    
+    (*>) :: a -> t a -> t a -- left scalar multiply
+    f *> v = toVector $ map (*f) $ fromVector v
+    (<*) :: t a -> a -> t a -- right scalar multiply
+    (<*) = flip (*>)
+    
+    (+>) :: a -> t a -> t a -- left scalar addition
+    f +> v = toVector $ map (+f) $ fromVector v
+    (<+) :: t a -> a -> t a -- right scalar addition
+    (<+) = flip (+>)
+    
+    (<+>) :: t a -> t a -> t a -- vector addition
     v1 <+> v2 = toVector $ zipWith (+) (fromVector v1) (fromVector v2)
+    
+    (<->) :: t a -> t a -> t a -- vector subtraction
+    v1 <-> v2 = toVector $ zipWith (-) (fromVector v1) (fromVector v2)
     
     fromVector :: t a -> [a]
     toVector :: [a] -> t a
@@ -19,15 +33,15 @@ class Num a => Vector t a where
 dot :: (Vector t a) => t a -> t a -> a
 dot = (<.>)
 
-instance Num a => Vector Vector3 a where
+instance Real a => Vector Vector3 a where
     (Vector3 x1 y1 z1) <.> (Vector3 x2 y2 z2) = 
         (x1 * x2) + (y1 * y2) + (z1 * z2)
     (Vector3 x1 y1 z1) <+> (Vector3 x2 y2 z2) = 
         Vector3 (x1 + x2) (y1 + y2) (z1 + z2)
     fromVector (Vector3 x y z) = [x,y,z]
     toVector (x:y:z:_) = Vector3 x y z
-
-instance Num a => Vector Vertex3 a where
+    
+instance Real a => Vector Vertex3 a where
     (Vertex3 x1 y1 z1) <.> (Vertex3 x2 y2 z2) = 
         (x1 * x2) + (y1 * y2) + (z1 * z2)
     (Vertex3 x1 y1 z1) <+> (Vertex3 x2 y2 z2) = 
