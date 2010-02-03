@@ -119,9 +119,9 @@ class Simulation a where
             mat = cameraMatrix cam
             mat' = foldl (\m k -> keyf k m) mat $ Set.elems keys
             
-            dt = 0.1
-            drx = 0.1 * (fromIntegral $ fst pos - fst prevPos)
-            dry = -0.1 * (fromIntegral $ snd pos - snd prevPos)
+            dt = 0.05
+            drx = 0.05 * (fromIntegral $ fst pos - fst prevPos)
+            dry = -0.05 * (fromIntegral $ snd pos - snd prevPos)
             
             keyf :: Key -> GLmatrix GLdouble -> GLmatrix GLdouble
             keyf (Char 'w') = mTranslate (vector3d 0 dt 0) -- forward

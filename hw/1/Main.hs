@@ -32,9 +32,13 @@ instance Simulation SphereSim where
             varying vec3 point;
             varying vec3 cameraPos;
             void main() {
+                // hopefully column-major form is a standard thing
+                // an awesome hack anyways
                 cameraPos = vec3(gl_ModelViewMatrixInverse[3]);
+                
                 vec4 p = gl_ModelViewMatrix * gl_Vertex;
-                point = vec3(p);
+                // point = vec3(p);
+                point = vec3(gl_Vertex);
                 gl_Position = gl_ProjectionMatrix * p;
             }
         |] [$here|
@@ -51,10 +55,11 @@ instance Simulation SphereSim where
                 float b = 2.0*dot(ray,cameraPos);
                 float c = dot(cameraPos,cameraPos) - r * r;
                 float det = b * b - 4.0 * a * c;
-                // if (det < 0.0) discard;
+                // edges are noisy still somehow...
+                if (det < 0.0) discard;
                 float t = (-b - sqrt(det)) / (2.0 * a);
                 vec3 p = cameraPos + t * ray;
-                // if (dot(p,p) == 0) discard;
+                if (dot(p,p) > r * r) discard;
                 gl_FragColor = vec4(cameraPos,1);
             }
         |]
