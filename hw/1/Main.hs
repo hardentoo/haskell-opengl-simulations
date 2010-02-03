@@ -54,16 +54,16 @@ instance Simulation SphereSim where
                 vec3 p = cameraPos + t * ray;
                 if (dot(p,p) > r * r + 0.1) discard;
                 
-                /*
-                vec3 grad = normalize(p * vec3(2,-2,2));
-                if (dot(grad,ray) > 0.0) grad *= -1;
+                vec3 norm = normalize(p * vec3(2,-2,2));
+                if (dot(norm,norm) < 0) norm *= -1;
+                vec3 lightSource = normalize(vec3(0,0,-5));
+                float diffuse = min(max(dot(norm,lightSource),0.0),1.0);
                 
-                vec3 lightSource = vec3(0,0,5);
-                float v = dot(grad,lightSource);
+                vec3 toCam = normalize(vec3(cameraPos)-p);
+                vec3 h = normalize(toCam + lightSource);
                 
-                */
+                float v = min(max(dot(norm,h),0.0),1.0);
                 
-                float v = 1.0;
                 gl_FragColor = vec4(v,v,v,1);
             }
         |]
