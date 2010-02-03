@@ -31,8 +31,7 @@ data Camera = Camera {
     cameraFOV :: GLdouble,
     cameraNear :: GLdouble,
     cameraFar :: GLdouble,
-    cameraPos :: Vertex3 GLdouble,
-    cameraTarget :: Vertex3 GLdouble
+    cameraMatrix :: GLmatrix GLdouble
 } deriving Show
 
 type KeySet = Set.Set Key
@@ -57,14 +56,17 @@ class Simulation a where
         winBG = Color4 0.2 0.2 0.2 1
     }
     
-    initCamera :: a -> Camera
-    initCamera sim = Camera {
-        cameraFOV = 60,
-        cameraNear = 0.1,
-        cameraFar = 100000,
-        cameraPos = vertex3d 0 2 4,
-        cameraTarget = vertex3d 0 0 1
-    }
+    initCamera :: a -> IO Camera
+    initCamera sim = do
+        m <- newMatrix $ do
+            rotate 30 $ vector3f 1 0 0
+            translate $ vector3f 0 (-4) 2
+        return $ Camera {
+            cameraFOV = 60,
+            cameraNear = 0.1,
+            cameraFar = 100000,
+            cameraMatrix = m
+        }
     
     initModes :: a -> [ DisplayMode ]
     initModes = const [ DoubleBuffered, RGBMode, WithDepthBuffer ]
@@ -108,31 +110,30 @@ class Simulation a where
         matrixMode $= Modelview 0
     
     navigate :: a -> InputState -> Camera -> Camera
-    navigate sim input cam = cam'
+    navigate sim input cam = cam { cameraMatrix = mat' }
         where
             keys = keySet input
             pos = mousePos input
             prevPos = prevMousePos input
             
-            cam' = foldl (\m k -> keyf k m) cam $ Set.elems keys
+            mat = cameraMatrix cam
+            mat' = foldl (\m k -> keyf k m) mat $ Set.elems keys
             
             dt = 0.1
-            drx = -0.01 * (fromIntegral $ fst pos - fst prevPos)
-            dry = 0.01 * (fromIntegral $ snd pos - snd prevPos)
+            drx = 0.1 * (fromIntegral $ fst pos - fst prevPos)
+            dry = -0.1 * (fromIntegral $ snd pos - snd prevPos)
             
-            fpos f c = c { cameraPos = f $ cameraPos c }
-            mix f v1 v2 = v2 <+> (f *> (v1 <-> v2))
-            ft f c = c { cameraTarget = f $ cameraTarget c }
-            
-            keyf :: Key -> Camera -> Camera
-            keyf (Char 'w') = fpos (<+> (vertex3d 0 0 dt)) -- forward
-            keyf (Char 's') = fpos (<+> (vertex3d 0 0 (-dt))) -- back
-            keyf (Char 'a') = fpos (<+> (vertex3d dt 0 0)) -- strafe left
-            keyf (Char 'd') = fpos (<+> (vertex3d (-dt) 0 0)) -- strafe right
-            keyf (Char 'q') = fpos (<+> (vertex3d 0 dt 0)) -- up
-            keyf (Char 'e') = fpos (<+> (vertex3d 0 (-dt) 0)) -- down
+            keyf :: Key -> GLmatrix GLdouble -> GLmatrix GLdouble
+            keyf (Char 'w') = mTranslate (vector3d 0 dt 0) -- forward
+            keyf (Char 's') = mTranslate (vector3d 0 (-dt) 0) -- back
+            keyf (Char 'a') = mTranslate (vector3d dt 0 0) -- strafe left
+            keyf (Char 'd') = mTranslate (vector3d (-dt) 0 0) -- strafe right
+            keyf (Char 'q') = mTranslate (vector3d 0 0 dt) -- up
+            keyf (Char 'e') = mTranslate (vector3d 0 0 (-dt)) -- down
             keyf (MouseButton LeftButton) =
-                ft (mix drx (vertex3d 0 0 1) . mix dry (vertex3d 1 0 0))
+                mRotate dry (vector3d 1 0 0) . mRotate drx (vector3d 0 0 1)
+            keyf (MouseButton RightButton) =
+                mRotate drx (vector3d 0 1 0)
             keyf _ = id
     
     keyboard :: a -> KeyboardMouseCallback
@@ -155,7 +156,7 @@ class Simulation a where
             prevMousePos = (0,0)
         }
         
-        let camera = initCamera sim
+        camera <- initCamera sim
         cameraRef <- newIORef camera
         reshapeCallback $= Just (reshape sim camera)
         
@@ -204,16 +205,10 @@ class Simulation a where
            
             matrixMode $= Modelview 0
             loadIdentity
+            rotate 90.0 $ vector3f 1 0 0 -- z-up
             
             cam <- get cameraRef
-            let
-                target = cameraTarget cam; pos = cameraPos cam
-                Vertex3 px py pz = pos
-                up = vector3d 0 0 1
-            lookAt pos (pos <-> target) up
-            print (pos,target,up)
-            
-            --rotate 90.0 $ vector3f 1 0 0 -- z-up
+            multMatrix $ cameraMatrix cam
             
             (simRef $=) =<< display sim
             (simRef $=) =<< displayWithCamera sim cam

@@ -16,8 +16,7 @@ instance Simulation SphereSim where
         let theta = simTheta sim; prog = simShader sim
         color3fM 0.8 0.8 1 >> drawFloor
         
-        let Vertex3 cx cy cz = cameraPos camera
-        bindProgram prog "cameraPos" $ vertex3f cx cy cz
+        -- bindProgram prog "cameraPos" $ vertex3f cx cy cz
         bindProgram prog "spherePos" $ vertex3f 0 0 0
         
         withProgram prog $ preservingMatrix $ do
@@ -31,7 +30,9 @@ instance Simulation SphereSim where
         prog <- newProgram [$here|
             // -- vertex shader
             varying vec3 point;
+            varying vec3 cameraPos;
             void main() {
+                cameraPos = vec3(gl_ModelViewMatrixInverse[3]);
                 vec4 p = gl_ModelViewMatrix * gl_Vertex;
                 point = vec3(p);
                 gl_Position = gl_ProjectionMatrix * p;
@@ -39,7 +40,7 @@ instance Simulation SphereSim where
         |] [$here|
             // -- fragment shader
             uniform vec3 spherePos;
-            uniform vec3 cameraPos;
+            varying vec3 cameraPos;
             varying vec3 point;
             void main() {
                 vec3 ray = normalize(cameraPos - point);
