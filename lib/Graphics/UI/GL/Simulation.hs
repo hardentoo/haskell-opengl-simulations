@@ -31,7 +31,10 @@ data Camera = Camera {
     cameraFOV :: GLdouble,
     cameraNear :: GLdouble,
     cameraFar :: GLdouble,
-    cameraMatrix :: GLmatrix GLdouble
+    cameraPos :: Vector3 GLdouble,
+    cameraYaw :: GLdouble,
+    cameraPitch :: GLdouble
+    -- no roll
 }
 
 type KeySet = Set.Set Key
@@ -53,15 +56,15 @@ class Simulation a where
         winBG = Color4 0.2 0.2 0.2 1
     }
     
-    initCamera :: a -> IO Camera
-    initCamera sim = do
-        m <- newMatrix $ translate $ vector3f 0 (-4) 2
-        return $ Camera {
-            cameraFOV = 60,
-            cameraNear = 0.1,
-            cameraFar = 100000,
-            cameraMatrix = m
-        }
+    initCamera :: a -> Camera
+    initCamera sim = Camera {
+        cameraFOV = 60,
+        cameraNear = 0.1,
+        cameraFar = 100000,
+        cameraPos = vector3d 0 4 (-2),
+        cameraYaw = 0.0,
+        cameraPitch = 0.0
+    }
     
     initModes :: a -> [ DisplayMode ]
     initModes = const [ DoubleBuffered, RGBMode, WithDepthBuffer ]
@@ -104,31 +107,33 @@ class Simulation a where
         perspective fov (w' / h') near far
         matrixMode $= Modelview 0
     
-    navigate :: a -> InputState -> GLmatrix GLdouble -> IO (GLmatrix GLdouble)
-    navigate sim input mat = do
-        return mat' where
+    navigate :: a -> InputState -> Camera -> IO Camera
+    navigate sim input cam = return cam'
+        where
             keys = keySet input
             pos = mousePos input
             prevPos = prevMousePos input
             
-            mat' :: GLmatrix GLdouble
-            mat' = foldl (\m k -> keyf k m) mat $ Set.elems keys
+            cam' = foldl (\m k -> keyf k m) cam $ Set.elems keys
             
             dt = 0.1
-            drx = 0.1 * (fromIntegral $ fst pos - fst prevPos)
-            dry = -0.1 * (fromIntegral $ snd pos - snd prevPos)
+            drx = -0.1 * (fromIntegral $ fst pos - fst prevPos)
+            dry = 0.1 * (fromIntegral $ snd pos - snd prevPos)
             
-            keyf :: Key -> GLmatrix GLdouble -> GLmatrix GLdouble
-            keyf (Char 'w') = mTranslate (vector3d 0 dt 0) -- forward
-            keyf (Char 's') = mTranslate (vector3d 0 (-dt) 0) -- back
-            keyf (Char 'a') = mTranslate (vector3d dt 0 0) -- strafe left
-            keyf (Char 'd') = mTranslate (vector3d (-dt) 0 0) -- strafe right
-            keyf (Char 'q') = mTranslate (vector3d 0 0 dt) -- up
-            keyf (Char 'e') = mTranslate (vector3d 0 0 (-dt)) -- down
-            keyf (MouseButton LeftButton) =
-                mRotate dry (vector3d 1 0 0) . mRotate drx (vector3d 0 0 1)
-            keyf (MouseButton RightButton) =
-                mRotate drx (vector3d 0 1 0)
+            fpos f c = c { cameraPos = f $ cameraPos c }
+            fangle f g c = c {
+                cameraPitch = f $ cameraPitch c,
+                cameraYaw = g $ cameraYaw c
+            }
+            
+            keyf :: Key -> Camera -> Camera
+            keyf (Char 'w') = fpos (<+> (vector3d 0 dt 0)) -- forward
+            keyf (Char 's') = fpos (<+> (vector3d 0 (-dt) 0)) -- back
+            keyf (Char 'a') = fpos (<+> (vector3d dt 0 0)) -- strafe left
+            keyf (Char 'd') = fpos (<+> (vector3d (-dt) 0 0)) -- strafe right
+            keyf (Char 'q') = fpos (<+> (vector3d 0 0 dt)) -- up
+            keyf (Char 'e') = fpos (<+> (vector3d 0 0 (-dt))) -- down
+            keyf (MouseButton LeftButton) = fangle (+ dry) (+ drx)
             keyf _ = id
     
     keyboard :: a -> KeyboardMouseCallback
@@ -151,7 +156,7 @@ class Simulation a where
             prevMousePos = (0,0)
         }
         
-        camera <- initCamera sim
+        let camera = initCamera sim
         cameraRef <- newIORef camera
         reshapeCallback $= Just (reshape sim camera)
         
@@ -190,8 +195,9 @@ class Simulation a where
             sim <- get simRef
             cam <- get cameraRef
             input <- get inputRef
-            mat <- navigate sim input (cameraMatrix cam)
-            cameraRef $= cam { cameraMatrix = mat }
+            
+            cam' <- navigate sim input cam
+            cameraRef $= cam'
             inputRef $~ \i -> i { prevMousePos = mousePos input }
         
         -- run display callback with helper stuff
@@ -206,7 +212,9 @@ class Simulation a where
             rotate 90.0 $ vector3f 1 0 0 -- z-up
             
             cam <- get cameraRef
-            multMatrix $ cameraMatrix cam
+            translate $ cameraPos cam
+            rotate (cameraYaw cam) $ vector3d 0 0 1
+            rotate (cameraPitch cam) $ vector3d 1 0 0
             
             (simRef $=) =<< display sim
             
