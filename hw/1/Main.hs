@@ -21,6 +21,7 @@ instance Simulation SphereSim where
         return sim
     
     initSimulation sim = do
+        -- C? In a haskell program? Without quotes? Yep! Heredocs hooray!
         prog <- newProgram [$here|
             // -- vertex shader
             varying vec3 point;
@@ -49,21 +50,24 @@ instance Simulation SphereSim where
                 float c = dot(cameraPos,cameraPos) - r * r;
                 float det = b * b - 4.0 * a * c;
                 
-                if (det < 0.0) discard;
+                if (det <= 0.0) discard;
                 float t = (-b - sqrt(det)) / (2.0 * a);
                 vec3 p = cameraPos + t * ray;
-                if (dot(p,p) > r * r + 0.1) discard;
+                
+                // problem with shrinking spheres without the extra +0.5
+                if (dot(p,p) > r * r + 0.5) discard;
                 
                 vec3 norm = normalize(p * vec3(2,-2,2));
-                if (dot(norm,norm) < 0) norm *= -1;
-                vec3 lightSource = normalize(vec3(0,0,-5));
+                vec3 lightSource = normalize(vec3(3,0,-5));
+                
+                // specular + diffuse lightning
                 float diffuse = min(max(dot(norm,lightSource),0.0),1.0);
                 
                 vec3 toCam = normalize(vec3(cameraPos)-p);
                 vec3 h = normalize(toCam + lightSource);
+                float spec = min(max(dot(norm,h),0.0),1.0);
                 
-                float v = min(max(dot(norm,h),0.0),1.0);
-                
+                float v = min(max(pow(spec, 3) + diffuse, 0.0), 1.0);
                 gl_FragColor = vec4(v,v,v,1);
             }
         |]
