@@ -67,8 +67,8 @@ instance Simulation SphereSim where
                 // problem with shrinking spheres without the extra +0.5
                 if (dot(p,p) > r * r + 0.5) discard;
                 
-                vec3 norm = normalize(p * vec3(2,-2,2));
-                vec3 lightSource = normalize(vec3(3,0,-5));
+                vec3 norm = normalize(p * vec3(2.0,-2.0,2.0));
+                vec3 lightSource = normalize(vec3(3.0,0.0,-5.0));
                 
                 // specular + diffuse lightning
                 float diffuse = min(max(dot(norm,lightSource),0.0),1.0);
@@ -77,8 +77,8 @@ instance Simulation SphereSim where
                 vec3 h = normalize(toCam + lightSource);
                 float spec = min(max(dot(norm,h),0.0),1.0);
                 
-                float v = min(max(pow(spec, 3) + diffuse, 0.0), 1.0);
-                gl_FragColor = vec4(v,v,v,1);
+                float v = min(max(pow(spec, 3.0) + diffuse, 0.0), 1.0);
+                gl_FragColor = vec4(v,v,v,1.0);
             }
         |]
         return $ sim { simShader = prog }
