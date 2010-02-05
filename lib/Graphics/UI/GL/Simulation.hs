@@ -10,7 +10,7 @@ import Data.GL
 import Data.Time.Clock (getCurrentTime, diffUTCTime)
 
 import System.IO.Unsafe (unsafePerformIO)
-import Data.IORef (IORef,newIORef)
+import Control.Concurrent.MVar (MVar,newMVar,readMVar,swapMVar,modifyMVar_)
 
 import Control.Monad (when,forever)
 import Control.Arrow (first)
@@ -95,9 +95,9 @@ class Simulation a where
     initSimulation :: a -> IO a
     initSimulation = return
     
-    reshape :: a -> IORef Camera -> ReshapeCallback
-    reshape sim cameraRef size@(Size w h) = do
-        cam <- get cameraRef
+    reshape :: a -> MVar Camera -> ReshapeCallback
+    reshape sim cameraVar size@(Size w h) = do
+        cam <- readMVar cameraVar
         viewport $= (Position 0 0, size)
         matrixMode $= Projection
         loadIdentity
@@ -145,36 +145,36 @@ class Simulation a where
     
     runSimulation :: a -> IO ()
     runSimulation sim' = do
-        (_, argv) <- getArgsAndInitialize
+        (_,argv) <- getArgsAndInitialize
         initWindow sim'
         initDisplay sim'
         sim <- initSimulation sim'
         
-        simRef <- newIORef sim
-        inputRef <- newIORef $ InputState {
+        simVar <- newMVar sim
+        inputVar <- newMVar $ InputState {
             keySet = Set.empty,
             mousePos = (0,0),
             prevMousePos = (0,0)
         }
         
         camera <- initCamera sim
-        cameraRef <- newIORef camera
-        reshapeCallback $= Just (reshape sim cameraRef)
+        cameraVar <- newMVar camera
         
+        reshapeCallback $= Just (reshape sim cameraVar)
         actionOnWindowClose $= MainLoopReturns -- ghci stays running
         
         -- bind passive motion callback for mouse movement polling
         (passiveMotionCallback $=) . Just $ \pos -> do
             let Position posX posY = pos
-            inputRef $~ \i -> i { mousePos = (posX,posY) }
-            sim <- get simRef
+            modifyMVar' inputVar $ \i -> i { mousePos = (posX,posY) }
+            sim <- readMVar simVar
             mouseMove sim pos
         
         -- more mouse polling (when buttons are down)
         (motionCallback $=) . Just $ \pos -> do
             let Position posX posY = pos
-            inputRef $~ \i -> i { mousePos = (posX,posY) }
-            sim <- get simRef
+            modifyMVar' inputVar $ \i -> i { mousePos = (posX,posY) }
+            sim <- readMVar simVar
             mouseMove sim pos
         
         -- bind keyboard callback
@@ -182,31 +182,31 @@ class Simulation a where
             \key keyState modifiers pos -> do
                 when (key == Char '\27') leaveMainLoop -- esc
                 -- update key set
-                inputRef $~ \i -> i {
+                modifyMVar' inputVar $ \i -> i {
                     keySet = ($ keySet i) $ case keyState of
                         Down -> Set.insert key
                         Up -> Set.delete key
                 }
                 -- run user callback
-                sim <- get simRef
+                sim <- readMVar simVar
                 keyboard sim key keyState modifiers pos
         
         -- navigation gets its own thread with regular updates
         forkIO $ forever $ runAtFPS 100 $ do
-            sim <- get simRef
-            input <- get inputRef
-            cameraRef $~ navigate sim input
-            inputRef $~ \i -> i { prevMousePos = mousePos input }
+            sim <- readMVar simVar
+            input <- readMVar inputVar
+            cameraVar `modifyMVar'` navigate sim input
+            inputVar `modifyMVar'` \i -> i { prevMousePos = mousePos input }
         
         -- run display callback with helper stuff
         displayCallback $= do
-            sim <- get simRef
+            sim <- readMVar simVar
             clearColor $= (winBG $ window sim)
             clear [ ColorBuffer, DepthBuffer ]
-           
+            
             matrixMode $= Projection
             loadIdentity
-            cam <- get cameraRef
+            cam <- readMVar cameraVar
             Size w h <- get windowSize
             let
                 fov = cameraFOV cam
@@ -223,8 +223,8 @@ class Simulation a where
             
             matrixMode $= Modelview 0
             
-            (simRef $=) =<< display sim
-            (simRef $=) =<< displayWithCamera sim cam
+            swapMVar simVar =<< display sim
+            swapMVar simVar =<< displayWithCamera sim cam
             
             flush
             swapBuffers
@@ -259,3 +259,6 @@ exitSimulation = do
     leaveMainLoop
     win <- get currentWindow
     when (isJust win) $ destroyWindow (fromJust win)
+
+modifyMVar' :: MVar a -> (a -> a) -> IO ()
+modifyMVar' var f = modifyMVar_ var (return . f)
