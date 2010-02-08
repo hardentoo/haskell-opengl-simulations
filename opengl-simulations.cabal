@@ -1,0 +1,11 @@
+Name:                opengl-simulations
+Version:             0.0.1
+Description:         Friendly opengl simulation framework with good defaults
+License:             BSD3
+Author:              James Halliday
+Maintainer:          substack@gmail.com
+Build-Depends:       base, GLUT, time, template-haskell, containers
+Exposed-modules:     Graphics.UI.GL.Simulation, Control.GL.Shader,
+                     Data.GL, Data.GL.IO, Data.GL.Matrix, Data.GL.Vector
+hs-source-dirs:      lib
+Build-Type:          Simple
