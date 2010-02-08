@@ -12,6 +12,7 @@ class Matrix t a where
     newMatrix :: IO () -> IO (t a)
     mRotate :: MatrixComponent b => b -> Vector3 b -> t a -> t a
     mTranslate :: MatrixComponent b => Vector3 b -> t a -> t a
+    identity :: t a
 
 instance MatrixComponent a => Matrix GLmatrix a where
     m1 <> m2 = unsafePerformIO $ newMatrix $ do
@@ -33,4 +34,8 @@ instance MatrixComponent a => Matrix GLmatrix a where
         loadIdentity
         rotate theta vec
         multMatrix mat
+        get $ matrix Nothing
+    
+    identity = unsafePerformIO $ preservingMatrix $ do
+        loadIdentity
         get $ matrix Nothing
