@@ -110,8 +110,8 @@ class Simulation a where
         perspective fov (w' / h') near far
         matrixMode $= Modelview 0
     
-    navigate :: a -> InputState -> Camera -> Camera
-    navigate sim input cam = cam { cameraMatrix = mat' }
+    navigate :: a -> InputState -> Camera -> IO Camera
+    navigate sim input cam = return $ cam { cameraMatrix = mat' }
         where
             keys = keySet input
             pos = mousePos input
@@ -198,7 +198,8 @@ class Simulation a where
         forkIO $ forever $ runAtFPS 100 $ do
             sim <- readMVar simVar
             input <- readMVar inputVar
-            cameraVar `modifyMVar'` navigate sim input
+            cam <- readMVar cameraVar
+            swapMVar cameraVar =<< navigate sim input cam
             inputVar `modifyMVar'` \i -> i { prevMousePos = mousePos input }
         
         -- run display callback with helper stuff
