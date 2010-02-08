@@ -137,11 +137,11 @@ class Simulation a where
                 mRotate drx (vector3d 0 0 1)
             keyf _ = id
     
-    keyboard :: a -> KeyboardMouseCallback
-    keyboard sim key keyState modifiers pos = return ()
+    keyboard :: a -> Key -> KeyState -> Modifiers -> Position -> IO a
+    keyboard sim key keyState modifiers pos = return sim
     
-    mouseMove :: a -> MotionCallback
-    mouseMove sim pos = return ()
+    mouseMove :: a -> Position -> IO a
+    mouseMove sim pos = return sim
     
     runSimulation :: a -> IO ()
     runSimulation sim' = do
@@ -168,14 +168,16 @@ class Simulation a where
             let Position posX posY = pos
             modifyMVar' inputVar $ \i -> i { mousePos = (posX,posY) }
             sim <- readMVar simVar
-            mouseMove sim pos
+            swapMVar simVar =<< mouseMove sim pos
+            return ()
         
         -- more mouse polling (when buttons are down)
         (motionCallback $=) . Just $ \pos -> do
             let Position posX posY = pos
             modifyMVar' inputVar $ \i -> i { mousePos = (posX,posY) }
             sim <- readMVar simVar
-            mouseMove sim pos
+            swapMVar simVar =<< mouseMove sim pos
+            return ()
         
         -- bind keyboard callback
         (keyboardMouseCallback $=) . Just $
@@ -189,7 +191,8 @@ class Simulation a where
                 }
                 -- run user callback
                 sim <- readMVar simVar
-                keyboard sim key keyState modifiers pos
+                swapMVar simVar =<< keyboard sim key keyState modifiers pos
+                return ()
         
         -- navigation gets its own thread with regular updates
         forkIO $ forever $ runAtFPS 100 $ do
