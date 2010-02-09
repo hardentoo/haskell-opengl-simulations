@@ -3,7 +3,7 @@ all: hw1
 hw1:
 	ghc --make -threaded -o hw1 \
 		hw/1/Main.hs \
-		lib/Graphics/UI/GL/Simulation.hs \
+		lib/Graphics/UI/GLUT/Simulation.hs \
 		lib/Data/GL.hs \
 		lib/Data/GL/Vector.hs \
 		lib/Data/GL/Matrix.hs \
@@ -13,7 +13,7 @@ hw1:
 hw1i:
 	ghci \
 		hw/1/Main.hs \
-		lib/Graphics/UI/GL/Simulation.hs \
+		lib/Graphics/UI/GLUT/Simulation.hs \
 		lib/Data/GL.hs \
 		lib/Data/GL/Vector.hs \
 		lib/Data/GL/Matrix.hs \

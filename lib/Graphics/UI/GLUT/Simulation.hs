@@ -1,5 +1,5 @@
--- easily extensible GL simulation application with reasonable defaults
-module Graphics.UI.GL.Simulation (
+-- easily extensible GLUT simulation application with reasonable defaults
+module Graphics.UI.GLUT.Simulation (
     module Data.GL,
     module Graphics.UI.GLUT,
     Simulation(..), SimWindow(..), Camera(..), KeySet,

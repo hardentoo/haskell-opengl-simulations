@@ -5,7 +5,7 @@ License:             BSD3
 Author:              James Halliday
 Maintainer:          substack@gmail.com
 Build-Depends:       base, GLUT, time, template-haskell, containers
-Exposed-modules:     Graphics.UI.GL.Simulation, Control.GL.Shader,
+Exposed-modules:     Graphics.UI.GLUT.Simulation, Control.GL.Shader,
                      Data.GL, Data.GL.IO, Data.GL.Matrix, Data.GL.Vector
 hs-source-dirs:      lib
 Build-Type:          Simple
