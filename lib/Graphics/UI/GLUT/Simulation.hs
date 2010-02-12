@@ -10,15 +10,24 @@ import Data.GL
 import Data.Time.Clock (getCurrentTime, diffUTCTime)
 
 import System.IO.Unsafe (unsafePerformIO)
-import Control.Concurrent.MVar (MVar,newMVar,readMVar,swapMVar,modifyMVar_)
+import Control.Concurrent.STM (STM,atomically)
+import Control.Concurrent.STM.TMVar
 
 import Control.Monad (when,forever)
+import Control.Monad.Trans (liftIO)
 import Control.Arrow (first)
 import Control.Applicative ((<$>))
 import Data.Maybe (isJust,fromJust)
 
 import qualified Data.Set as Set
 import Control.Concurrent (forkIO,threadDelay)
+
+-- STM TMVar versions of Data.StateVar shorthand operators
+($$~) :: TMVar a -> (a -> a) -> STM ()
+tm $$~ f = putTMVar tm . f =<< takeTMVar tm
+
+($$=) :: TMVar a -> a -> STM ()
+tm $$= v = takeTMVar tm >> putTMVar tm v
 
 data SimWindow = SimWindow {
     winTitle :: String,
@@ -42,11 +51,14 @@ data InputState = InputState {
 }
 
 class Simulation a where
+    preDisplay :: a -> IO a
+    preDisplay = return
+    
     display :: a -> IO a
     display = return
     
-    displayWithCamera :: a -> Camera -> IO a
-    displayWithCamera sim camera = return sim
+    postDisplay :: a -> IO a
+    postDisplay = return
     
     window :: a -> SimWindow
     window = const $ SimWindow {
@@ -95,12 +107,11 @@ class Simulation a where
     initSimulation :: a -> IO a
     initSimulation = return
     
-    reshape :: a -> MVar Camera -> ReshapeCallback
-    reshape sim cameraVar size@(Size w h) = do
-        cam <- readMVar cameraVar
-        viewport $= (Position 0 0, size)
+    projection :: a -> Camera -> IO ()
+    projection sim cam = do
         matrixMode $= Projection
         loadIdentity
+        Size w h <- get windowSize
         let
             fov = cameraFOV cam
             near = cameraNear cam
@@ -108,10 +119,15 @@ class Simulation a where
             w' = fromIntegral w
             h' = fromIntegral h
         perspective fov (w' / h') near far
+    
+    reshape :: a -> Camera -> ReshapeCallback
+    reshape sim cam size@(Size w h) = do
+        viewport $= (Position 0 0, size)
+        projection sim cam
         matrixMode $= Modelview 0
     
-    navigate :: a -> InputState -> Camera -> IO Camera
-    navigate sim input cam = return $ cam { cameraMatrix = mat' }
+    navigate :: a -> InputState -> Camera -> Camera
+    navigate sim input cam = cam { cameraMatrix = mat' }
         where
             keys = keySet input
             pos = mousePos input
@@ -150,85 +166,75 @@ class Simulation a where
         initDisplay sim'
         sim <- initSimulation sim'
         
-        simVar <- newMVar sim
-        inputVar <- newMVar $ InputState {
+        simVar <- atomically $ newTMVar sim
+        inputVar <- atomically $ newTMVar $ InputState {
             keySet = Set.empty,
             mousePos = (0,0),
             prevMousePos = (0,0)
         }
         
         camera <- initCamera sim
-        cameraVar <- newMVar camera
+        cameraVar <- atomically $ newTMVar camera
         
-        reshapeCallback $= Just (reshape sim cameraVar)
+        (reshapeCallback $=) . Just $ \size -> do
+            camera <- atomically $ readTMVar cameraVar
+            reshape sim camera size
+        
         actionOnWindowClose $= MainLoopReturns -- ghci stays running
         
         -- bind passive motion callback for mouse movement polling
         (passiveMotionCallback $=) . Just $ \pos -> do
             let Position posX posY = pos
-            modifyMVar' inputVar $ \i -> i { mousePos = (posX,posY) }
-            sim <- readMVar simVar
-            swapMVar simVar =<< mouseMove sim pos
-            return ()
+            atomically $ inputVar $$~ \i -> i { mousePos = (posX,posY) }
+            sim <- atomically $ takeTMVar simVar
+            atomically $ putTMVar simVar sim'
         
+        {-
         -- more mouse polling (when buttons are down)
-        (motionCallback $=) . Just $ \pos -> do
+        (motionCallback $=) . Just $ \pos -> atomically $ do
             let Position posX posY = pos
-            modifyMVar' inputVar $ \i -> i { mousePos = (posX,posY) }
-            sim <- readMVar simVar
-            swapMVar simVar =<< mouseMove sim pos
-            return ()
+            inputVar $$~ \i -> i { mousePos = (posX,posY) }
+            simVar $$~ \sim -> mouseMove sim pos
         
         -- bind keyboard callback
         (keyboardMouseCallback $=) . Just $
             \key keyState modifiers pos -> do
                 when (key == Char '\27') leaveMainLoop -- esc
                 -- update key set
-                modifyMVar' inputVar $ \i -> i {
-                    keySet = ($ keySet i) $ case keyState of
-                        Down -> Set.insert key
-                        Up -> Set.delete key
-                }
+                atomically $ do
+                    inputVar $$~ \i -> i {
+                        keySet = ($ keySet i) $ case keyState of
+                            Down -> Set.insert key
+                            Up -> Set.delete key
+                    }
                 -- run user callback
-                sim <- readMVar simVar
-                swapMVar simVar =<< keyboard sim key keyState modifiers pos
-                return ()
+                atomically $ do
+                    simVar $$~ \sim -> keyboard sim key keyState modifiers pos
+        -}
         
-        -- navigation gets its own thread with regular updates
-        forkIO $ forever $ runAtFPS 100 $ do
-            sim <- readMVar simVar
-            input <- readMVar inputVar
-            cam <- readMVar cameraVar
-            swapMVar cameraVar =<< navigate sim input cam
-            inputVar `modifyMVar'` \i -> i { prevMousePos = mousePos input }
+        -- navigation gets its own thread with regular atomic updates
+        forkIO $ forever $ runAtFPS 100 $ atomically $ do
+            sim <- readTMVar simVar
+            input <- readTMVar inputVar
+            cameraVar $$~ navigate sim input
+            inputVar $$~ \i -> i { prevMousePos = mousePos input }
         
         -- run display callback with helper stuff
         displayCallback $= do
-            sim <- readMVar simVar
+            sim <- atomically $ takeTMVar simVar
             clearColor $= (winBG $ window sim)
             clear [ ColorBuffer, DepthBuffer ]
             
-            matrixMode $= Projection
-            loadIdentity
-            cam <- readMVar cameraVar
-            Size w h <- get windowSize
-            let
-                fov = cameraFOV cam
-                near = cameraNear cam
-                far = cameraFar cam
-                w' = fromIntegral w
-                h' = fromIntegral h
-            perspective fov (w' / h') near far
-            multMatrix $ cameraMatrix cam
-            
+            camera <- atomically $ readTMVar cameraVar
+            projection sim camera
+            multMatrix $ cameraMatrix camera
             matrixMode $= Modelview 0
+            
             loadIdentity
             rotate (-90) $ vector3f 1 0 0 -- z-up
             
-            matrixMode $= Modelview 0
-            
-            swapMVar simVar =<< display sim
-            swapMVar simVar =<< displayWithCamera sim cam
+            sim' <- postDisplay =<< display =<< preDisplay sim
+            atomically $ putTMVar simVar sim'
             
             flush
             swapBuffers
@@ -263,6 +269,3 @@ exitSimulation = do
     leaveMainLoop
     win <- get currentWindow
     when (isJust win) $ destroyWindow (fromJust win)
-
-modifyMVar' :: MVar a -> (a -> a) -> IO ()
-modifyMVar' var f = modifyMVar_ var (return . f)
