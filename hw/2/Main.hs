@@ -37,7 +37,7 @@ instance Simulation EllipsoidSim where
             varying float depth;
             
             void main() {
-                // Translation is the third column of the projection inverse.
+                // -- Translation is the third column of the projection inverse.
                 camera = vec3(gl_ProjectionMatrixInverse[3]);
                 
                 vec3 mv = vec3(gl_ModelViewMatrix * gl_Vertex);
@@ -54,12 +54,9 @@ instance Simulation EllipsoidSim where
             varying vec3 offset;
             varying float depth;
             
-            void main() {
-                gl_FragDepth = depth;
-                
+            float ellipse(vec4 eq) {
                 // -- Solve for the intersection of the ray with an ellipse
                 // -- described by ax² + by² + cz² = -k
-                vec4 eq = vec4(2.0, 1.0, 3.0, 4.0); // a, b, c, k
                 float a = eq.x, b = eq.y, c = eq.z, k = -eq.w;
                 
                 // -- P(t) = C + tD, t >= 0
@@ -74,10 +71,18 @@ instance Simulation EllipsoidSim where
                     + (b * C.y * C.y) + (c * C.z * C.z) + k;
                 
                 // -- non-real answer detection
-                if ((b_ * b_) - (4 * a_ * c_) < 0.0) discard;
+                if ((b_ * b_) - (4 * a_ * c_) < 0.0) return(0.0);
+                else return(1.0);
+            }
+            
+            void main() {
+                gl_FragDepth = depth;
                 
+                vec4 e = vec4(2.0, 1.0, 3.0, 4.0);
+                if (ellipse(e) == 0.0) discard;
                 gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
             }
+            
         |]
         return $ sim { simShader = prog }
 
