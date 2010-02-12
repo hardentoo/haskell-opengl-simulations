@@ -3,7 +3,9 @@
 
 module Data.GL.Vector (
     Vector(..), dot,
+    vector1f, vector1d, vector2f, vector2d,
     vector3f, vector3d, vector4f, vector4d,
+    vertex1f, vertex1d, vertex2f, vertex2d,
     vertex3f, vertex3d, vertex4f, vertex4d,
     color3f, color3d, color4f, color4d,
     texCoord1f, texCoord1d, texCoord2f, texCoord2d,
@@ -21,6 +23,7 @@ class Real a => Vector t a where
     (<.>) :: t a -> t a -> a -- dot product
     v1 <.> v2 = sum $ zipWith (*) (vectorList v1) (vectorList v2)
     (<^>) :: t a -> t a -> t a -- cross product
+    _ <^> _ = error "Cross product is not defined for this dimension"
 
 -- alias for <.>
 dot :: (Vector t a) => t a -> t a -> a
@@ -30,12 +33,10 @@ dot = (<.>)
 instance Real a => Vector Vector1 a where
     vectorList (Vector1 x) = [x]
     listVector (x:_) = Vector1 x
-    _ <^> _ = error "Cross product is not defined in 1 dimension (only 3 or 7)"
 
 instance Real a => Vector Vector2 a where
     vectorList (Vector2 x y) = [x,y]
     listVector (x:y:_) = Vector2 x y
-    _ <^> _ = error "Cross product is not defined in 2 dimensions (only 3 or 7)"
 
 instance Real a => Vector Vector3 a where
     vectorList (Vector3 x y z) = [x,y,z]
@@ -49,19 +50,16 @@ instance Real a => Vector Vector3 a where
 instance Real a => Vector Vector4 a where
     vectorList (Vector4 x y z w) = [x,y,z,w]
     listVector (x:y:z:w:_) = Vector4 x y z w
-    _ <^> _ = error "Cross product is not defined in 4 dimensions (only 3 or 7)"
 
 -- Real instances, vertexes
 instance Real a => Vector Vertex1 a where
     vectorList (Vertex1 x) = [x]
     listVector (x:_) = Vertex1 x
-    _ <^> _ = error "Cross product is not defined in 1 dimension (only 3 or 7)"
 
 instance Real a => Vector Vertex2 a where
     vectorList (Vertex2 x y) = [x,y]
     listVector (x:y:_) = Vertex2 x y
     (Vertex2 x1 y1) <.> (Vertex2 x2 y2) = (x1 * x2) + (y1 + y2)
-    _ <^> _ = error "Cross product is not defined in 2 dimensions (only 3 or 7)"
 
 instance Real a => Vector Vertex3 a where
     vectorList (Vertex3 x y z) = [x,y,z]
@@ -75,7 +73,6 @@ instance Real a => Vector Vertex3 a where
 instance Real a => Vector Vertex4 a where
     vectorList (Vertex4 x y z w) = [x,y,z,w]
     listVector (x:y:z:w:_) = Vertex4 x y z w
-    _ <^> _ = error "Cross product is not defined in 4 dimensions (only 3 or 7)"
 
 -- Real instances, colors
 instance Real a => Vector Color3 a where
@@ -90,18 +87,15 @@ instance Real a => Vector Color3 a where
 instance Real a => Vector Color4 a where
     vectorList (Color4 x y z w) = [x,y,z,w]
     listVector (x:y:z:w:_) = Color4 x y z w
-    _ <^> _ = error "Cross product is not defined in 4 dimensions (only 3 or 7)"
 
 -- Real instances, texture coordinates
 instance Real a => Vector TexCoord1 a where
     vectorList (TexCoord1 x) = [x]
     listVector (x:_) = TexCoord1 x
-    _ <^> _ = error "Cross product is not defined in 1 dimension (only 3 or 7)"
 
 instance Real a => Vector TexCoord2 a where
     vectorList (TexCoord2 x y) = [x,y]
     listVector (x:y:_) = TexCoord2 x y
-    _ <^> _ = error "Cross product is not defined in 2 dimensions (only 3 or 7)"
 
 instance Real a => Vector TexCoord3 a where
     vectorList (TexCoord3 x y z) = [x,y,z]
@@ -113,7 +107,6 @@ instance Real a => Vector TexCoord3 a where
             z = (x1 * y2 - y1 * x2)
     
 instance Real a => Vector TexCoord4 a where
-    _ <^> _ = error "Cross product is not defined in 4 dimensions (only 3 or 7)"
     vectorList (TexCoord4 x y z w) = [x,y,z,w]
     listVector (x:y:z:w:_) = TexCoord4 x y z w
 
