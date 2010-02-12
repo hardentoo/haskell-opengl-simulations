@@ -69,7 +69,7 @@ drawFloor sim = do
         NoProxy -- standard texture 2d
         0 -- level 0
         RGBA' -- internal format
-        (TextureSize2D 20 20) -- texture size
+        (TextureSize2D 19 19) -- texture size
         0 -- border
         (checkerTex sim) -- pointer to the blurred texture
     
@@ -95,7 +95,7 @@ main = do
         \    Skewer: drag right mouse button\n\
         \ "
     
-    ptr <- newArray $ take (20 * 20)
+    ptr <- newArray $ take (19 * 19)
         $ cycle [ color4f 0 0 0 0.5, color4f 1 1 1 0.5 ]
     
     runSimulation $ EllipsoidSim {
