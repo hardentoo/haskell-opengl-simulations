@@ -39,7 +39,6 @@ vertexShader = [$here|
     // -- vertex shader
     varying vec3 offset; // -- normalized vector offset of camera
     varying vec3 camera; // -- camera in world coords
-    varying float depth;
     
     void main() {
         // -- Translation is the third column of the projection inverse.
@@ -49,9 +48,6 @@ vertexShader = [$here|
         offset = normalize(camera - mv);
         
         gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex; 
-        
-        vec4 proj = gl_ProjectionMatrix * vec4(mv,1);
-        depth = 0.5 + 0.5 * (proj.z / proj.w);
     }
 |]
         
@@ -60,14 +56,18 @@ fragmentShader = [$here|
     // -- fragment shader
     varying vec3 camera;
     varying vec3 offset;
-    varying float depth;
     
+    // Compute the intersection of an ellipse with the camera ray.
+    // Returns the a vec4 with the point of intersection and solution t in the
+    // vec4.w slot.
     vec4 ellipse(vec4 eq, vec3 pos) {
         // -- Solve for the intersection of the ray with an ellipse
         // -- described by ax² + by² + cz² = -k
         float a = eq.x, b = eq.y, c = eq.z, k = -eq.w;
         // P(t) = C + t * D, t >= 0
-        vec3 C = camera, D = offset;
+        
+        vec3 C = camera - pos;
+        vec3 D = offset;
         
         // a_, b_, and c_ used to compute quadratic equation
         float a_ = (a * D.x * D.x) + (b * D.y * D.y) + (c * D.z * D.z);
@@ -76,8 +76,8 @@ fragmentShader = [$here|
         );
         float c_ = (a * C.x * C.x) + (b * C.y * C.y) + (c * C.z * C.z) + k;
         
-        vec3 pnorm = vec3(0.0);
-        float t = -1.0;
+        vec3 point = vec3(0.0);
+        float t = -1.0; // default to non-real answer
         if (b_ * b_ >= 4.0 * a_ * c_) { // real answer
             float t1 = (-b_ + sqrt(b_ * b_ - 4.0 * a_ * c_)) / (2.0 * a_);
             float t2 = (-b_ - sqrt(b_ * b_ - 4.0 * a_ * c_)) / (2.0 * a_);
@@ -88,17 +88,22 @@ fragmentShader = [$here|
             else {
                 t = max(t1,t2); // one solution, pick >= 0
             }
-            vec3 p = C + t * D; // solution
-            pnorm = normalize(vec3(
-                2.0 * a * p.x, 2.0 * b * p.y, -2.0 * c * p.z
-            ));
+            point = C + t * D; // point of intersection
         }
-        return vec4(pnorm,t);
+        return vec4(point,t);
+    }
+    
+    // Compute the normalized gradient of the ellipse from the equation and the
+    // point of intersection.
+    vec3 gradient(vec4 eq, vec3 p) {
+        return normalize(vec3(
+            2.0 * eq.x * p.x,
+            2.0 * eq.y * p.y,
+            -2.0 * eq.z * p.z
+        ));
     }
     
     void main() {
-        gl_FragDepth = depth;
-        
         vec4 e1 = ellipse(
             vec4(1.0, 0.7, 2.0, 1.0),
             vec3(0.0, 0.0, 0.0)
@@ -110,9 +115,13 @@ fragmentShader = [$here|
         );
         
         // not sure why < 0 doesn't work >_<
-        if (e1.w == -1.0 && e2.w == -1) discard;
+        if (e1.w == -1.0 && e2.w == -1.0) discard;
         
         vec4 e = min(e1,e2); // closest ellipse
+        
+        // update depth buffer accordingly
+        vec4 proj = gl_ProjectionMatrix * vec4(vec3(e),1.0);
+        gl_FragDepth = 0.5 + 0.5 * (proj.z / proj.w);
         
         gl_FragColor = vec4(vec3(e), 1.0);
     }
