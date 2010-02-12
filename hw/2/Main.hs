@@ -34,29 +34,38 @@ instance Simulation EllipsoidSim where
             // -- vertex shader
             varying vec3 offset; // -- normalized vector offset of camera
             varying vec3 camera; // -- camera in world coords
+            varying float depth;
+            
             void main() {
                 // Translation is the third column of the projection inverse.
                 camera = vec3(gl_ProjectionMatrixInverse[3]);
-                offset = normalize(
-                    camera - vec3(gl_ModelViewMatrix * gl_Vertex)
-                );
+                
+                vec3 mv = vec3(gl_ModelViewMatrix * gl_Vertex);
+                offset = normalize(camera - mv);
+                
                 gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex; 
+                
+                vec4 proj = gl_ProjectionMatrix * vec4(mv,1);
+                depth = 0.5 + 0.5 * (proj.z / proj.w);
             }
         |] [$here|
             // -- fragment shader
             varying vec3 camera;
             varying vec3 offset;
+            varying float depth;
             
             void main() {
-                // Solve for the intersection of the ray with an ellipse
-                // described by ax² + by² + cz² = -k
-                vec4 eq = vec4(1,1,1,1); // a, b, c, k
+                gl_FragDepth = depth;
+                
+                // -- Solve for the intersection of the ray with an ellipse
+                // -- described by ax² + by² + cz² = -k
+                vec4 eq = vec4(2.0, 1.0, 3.0, 4.0); // a, b, c, k
                 float a = eq.x, b = eq.y, c = eq.z, k = -eq.w;
                 
-                // P(t) = C + tD, t >= 0
+                // -- P(t) = C + tD, t >= 0
                 vec3 C = camera, D = offset;
                 
-                // a_, b_, and c_ used to compute quadratic equation
+                // -- a_, b_, and c_ used to compute quadratic equation
                 float a_ = (a * D.x * D.x) + (b * D.y * D.y) + (c * D.z * D.z);
                 float b_ = 2.0 * (
                     (a * C.x * D.x) + (b * C.y * D.y) + (c * C.z * D.z)
@@ -64,7 +73,7 @@ instance Simulation EllipsoidSim where
                 float c_ = (a * C.x * C.x)
                     + (b * C.y * C.y) + (c * C.z * C.z) + k;
                 
-                // non-real answer detection
+                // -- non-real answer detection
                 if ((b_ * b_) - (4 * a_ * c_) < 0.0) discard;
                 
                 gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
