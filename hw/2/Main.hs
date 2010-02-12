@@ -60,13 +60,13 @@ fragmentShader = [$here|
     // Compute the intersection of an ellipse with the camera ray.
     // Returns the a vec4 with the point of intersection and solution t in the
     // vec4.w slot.
-    vec4 ellipse(vec4 eq, vec3 pos) {
+    vec4 ellipse(vec4 eq, mat4 emat) {
         // -- Solve for the intersection of the ray with an ellipse
         // -- described by ax² + by² + cz² = -k
         float a = eq.x, b = eq.y, c = eq.z, k = -eq.w;
         // P(t) = C + t * D, t >= 0
         
-        vec3 C = camera - pos;
+        vec3 C = vec3(emat * vec4(camera, 1.0));
         vec3 D = offset;
         
         // a_, b_, and c_ used to compute quadratic equation
@@ -104,26 +104,63 @@ fragmentShader = [$here|
     }
     
     void main() {
+        vec4 eq1 = vec4(1.0, 0.7, 2.0, 1.0);
         vec4 e1 = ellipse(
-            vec4(1.0, 0.7, 2.0, 1.0),
-            vec3(0.0, 0.0, 0.0)
+            eq1,
+            mat4( // the worst way to possibly do this
+                vec4(1.0, 0.0, 0.0, 0.0),
+                vec4(0.0, 1.0, 0.0, 0.0),
+                vec4(0.0, 0.0, 1.0, 0.0),
+                vec4(0.0, 0.0, 0.0, 1.0)
+            )
         );
         
+        vec4 eq2 = vec4(4.0, 0.3, 0.5, 2.0);
         vec4 e2 = ellipse(
-            vec4(4.0, 0.3, 0.5, 2.0),
-            vec3(3.0, 0.0, -2.0)
+            eq2,
+            mat4( // the worst way to possibly do this
+                vec4(1.0, 0.0, 0.0, 0.0),
+                vec4(0.0, 1.0, 0.0, 0.0),
+                vec4(0.0, 0.0, 1.0, 0.0),
+                vec4(3.0, 0.0, 0.0, 1.0)
+            )
         );
         
         // not sure why < 0 doesn't work >_<
         if (e1.w == -1.0 && e2.w == -1.0) discard;
         
-        vec4 e = min(e1,e2); // closest ellipse
+        float which = 0.0;
+        vec4 e; // ellipse intersection
+        vec4 eq; // matching equation
+        if (e1.w == -1.0) {
+            e = e1; eq = eq1;
+            which = 1.0;
+        }
+        else if (e2.w == -1.0) {
+            e = e2; eq = eq2;
+            which = 2.0;
+        }
+        else if (e1.w < e2.w) {
+            e = e1; eq = eq1;
+            which = 1.0;
+        }
+        else {
+            e = e2; eq = eq2;
+            which = 2.0;
+        }
+        
+        vec3 g = gradient(eq,e);
         
         // update depth buffer accordingly
         vec4 proj = gl_ProjectionMatrix * vec4(vec3(e),1.0);
         gl_FragDepth = 0.5 + 0.5 * (proj.z / proj.w);
         
-        gl_FragColor = vec4(vec3(e), 1.0);
+        if (which == 1.0) {
+            gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
+        }
+        else {
+            gl_FragColor = vec4(0.0, 1.0, 0.0, 1.0);
+        }
     }
 |]
         
