@@ -69,19 +69,25 @@ ellipseF = [$here|
         
         // a_, b_, and c_ used to compute quadratic equation
         float a_ = (a * D.x * D.x) + (b * D.y * D.y) + (c * D.z * D.z);
-        float b_ = 2.0 * (
-            (a * C.x * D.x) + (b * C.y * D.y) + (c * C.z * D.z)
-        );
+        float b_ = 2.0 * ((a * C.x * D.x) + (b * C.y * D.y) + (c * C.z * D.z));
+        float c_ = (a * C.x * C.x) + (b * C.y * C.y) + (c * C.z * C.z) + k;
         
-        float c_ = (a * C.x * C.x)
-            + (b * C.y * C.y) + (c * C.z * C.z) + k;
         if (b_ * b_ < 4 * a_ * c_) {
             t = -1.0; // non-real answer
         }
         else {
             float t1 = (-b_ + sqrt(b_*b_ - 4*a_*c_)) / (2*a_);
-            float t2 = (-b_ - sqrt(b_*b_ - 4*a_*c_)) / (2*a_);
-            t = min(t1,t2);
+            float t2 = (-b_ + sqrt(b_*b_ - 4*a_*c_)) / (2*a_);
+            if (t1 >= 0 && t2 >= 0) {
+                t = min(t1,t2); // two solutions, pick nearest
+            }
+            else {
+                t = max(t1,t2); // one solution, pick >= 0
+            }
+            vec3 p = C + t * D; // solution
+            pnorm = normalize(vec3(
+                2.0 * a * p.x, 2.0 * b * p.y, -2.0 * c * p.z
+            ));
         }
     }
 |]
@@ -99,12 +105,11 @@ fragmentShader = replace "$ellipse$" ellipseF [$here|
         vec4 eq = vec4(1.0, 1.0, 1.0, 1.0);
         vec3 pos = vec3(0.0, 0.0, 0.0);
         
-        float t;
-        $ellipse$ // sets t (sigh)
-        
+        float t; vec3 pnorm;
+        $ellipse$ // sets variables (sigh)
         if (t < 0.0) discard;
         
-        gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
+        gl_FragColor = vec4(pnorm, 1.0);
     }
 |]
         
