@@ -76,7 +76,6 @@ ellipseF = [$here|
         
         if (b_ * b_ < 4.0 * a_ * c_) {
             t = -1.0; // non-real answer
-            discard;
         }
         else {
             float t1 = (-b_ + sqrt(b_*b_ - 4*a_*c_)) / (2*a_);
@@ -105,12 +104,29 @@ fragmentShader = replace "$ellipse$" ellipseF [$here|
     void main() {
         //gl_FragDepth = depth;
         
-        vec4 eq = vec4(1.0, 1.0, 1.0, 1.0);
-        vec3 pos = vec3(0.0, 0.0, 0.0);
+        float t = -1.0; vec3 pnorm;
+        vec4 eq; vec3 pos;
         
-        float t; vec3 pnorm;
+        eq = vec4(1.0, 1.0, 1.0, 1.0);
+        pos = vec3(0.0, 0.0, 0.0);
         $ellipse$ // sets variables (sigh)
-        //if (t < 0.1) discard;
+        float e1 = t;
+        
+        eq = vec4(1.0, 1.0, 1.0, 1.0);
+        pos = vec3(3.0, 0.0, 0.0);
+        vec3 pnorm1 = pnorm;
+        $ellipse$
+        float e2 = t;
+        vec3 pnorm2 = pnorm;
+        
+        float tt = 0.0;
+        if (e1 >= 0.0 && e2 >= 0.0) {
+            tt = min(e1,e2);
+        }
+        else {
+            tt = max(e1,e2);
+        }
+        if (tt < 0) discard;
         
         gl_FragColor = vec4(pnorm, 1.0);
     }
