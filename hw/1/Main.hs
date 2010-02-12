@@ -6,7 +6,6 @@ module Main where
 import Graphics.UI.GLUT.Simulation
 import Control.GL.Shader (newProgram,withProgram,bindProgram,here)
 import Control.Monad (forM_)
-import Data.IORef (IORef,newIORef)
 
 -- With the simulator typeclass, just create your own datatypes...
 data SphereSim = SphereSim {
