@@ -21,7 +21,7 @@ instance Simulation EllipsoidSim where
     display sim = runAtFPS 60 $ do
         let prog = simShader sim
         color3fM 0.8 0.8 1
-        --drawFloor sim
+        drawFloor sim
         
         -- It turns out that the camera position can be taken right out of the
         -- projection matrix, so no need to bind any uniform variables.
@@ -116,13 +116,15 @@ fragmentShader = [$here|
         );
         
         vec4 eq2 = vec4(4.0, 0.3, 0.5, 2.0);
+        float a2 = 30.0;
         vec4 e2 = ellipse(
             eq2,
             mat4( // the worst way to possibly do this
+                // you could rotate these...
                 vec4(1.0, 0.0, 0.0, 0.0),
                 vec4(0.0, 1.0, 0.0, 0.0),
                 vec4(0.0, 0.0, 1.0, 0.0),
-                vec4(3.0, 0.0, 0.0, 1.0)
+                vec4(3.0, -2.0, 0.0, 1.0)
             )
         );
         
