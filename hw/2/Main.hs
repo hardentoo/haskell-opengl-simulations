@@ -50,9 +50,58 @@ vertexShader = [$here|
         gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex; 
     }
 |]
+
+shaderPrelude :: String
+shaderPrelude = [$here|
+    const mat4 identity = mat4(
+        vec4(1.0, 0.0, 0.0, 0.0),
+        vec4(0.0, 1.0, 0.0, 0.0),
+        vec4(0.0, 0.0, 1.0, 0.0),
+        vec4(0.0, 0.0, 0.0, 1.0)
+    );
+    
+    mat4 rotate(float angle, vec3 axis) {
+        // http://en.wikipedia.org/wiki/Rotation_matrix#Axis_and_angle
+        float c = cos(angle), s = sin(angle);
+        vec3 s3 = axis * s;
+        vec3 c3 = axis * vec3(1.0 - c);
+        vec3 sw = axis * c3.yzx;
+        return mat4(
+            vec4(
+                axis.x * c3.x + c,
+                sw.x - s3.z,
+                c3.z + s3.y,
+                0.0
+            ),
+            vec4(
+                sw.x + s3.z,
+                axis.y * c3.y + c,
+                sw.y - s3.x,
+                0.0
+            ),
+            vec4(
+                sw.z - s3.y,
+                sw.y + s3.x,
+                axis.z * c3.z + c,
+                0.0
+            ),
+            vec4(0.0, 0.0, 0.0, 1.0)
+        );
         
+        /*
+        c = cos(θ); s = sin(θ); C = 1-c
+        xs = x*s;   ys = y*s;   zs = z*s
+        xC = x*C;   yC = y*C;   zC = z*C
+        xyC = x*yC; yzC = y*zC; zxC = z*xC
+        [ x*xC+c   xyC-zs   zxC+ys ]
+        [ xyC+zs   y*yC+c   yzC-xs ]
+        [ zxC-ys   yzC+xs   z*zC+c ]
+        */
+    }
+|]
+
 fragmentShader :: String
-fragmentShader = [$here|
+fragmentShader = shaderPrelude ++ [$here|
     // -- fragment shader
     varying vec3 camera;
     varying vec3 offset;
@@ -107,12 +156,15 @@ fragmentShader = [$here|
         vec4 eq1 = vec4(1.0, 0.7, 2.0, 1.0);
         vec4 e1 = ellipse(
             eq1,
-            mat4( // the worst way to possibly do this
+            rotate(30.0, vec3(1,0,0))
+            /*
+            mat4(
                 vec4(1.0, 0.0, 0.0, 0.0),
                 vec4(0.0, 1.0, 0.0, 0.0),
                 vec4(0.0, 0.0, 1.0, 0.0),
                 vec4(0.0, 0.0, 0.0, 1.0)
             )
+            */
         );
         
         vec4 eq2 = vec4(4.0, 0.3, 0.5, 2.0);
@@ -128,33 +180,29 @@ fragmentShader = [$here|
             )
         );
         
-        // not sure why < 0 doesn't work >_<
-        if (e1.w == -1.0 && e2.w == -1.0) discard;
+        //
+        if (e1.w < 0.0 && e2.w < 0.0) discard;
         
-        float which = 0.0;
-        vec4 e; // ellipse intersection
+        // figure out which ellipse is intersecting
+        float which = 2.0;
+        if (e2.w < 0.0 || e1.w < e2.w) which = 1.0;
+        
+        vec3 ei; // ellipse intersection
         vec4 eq; // matching equation
-        if (e1.w == -1.0) {
-            e = e1; eq = eq1;
-            which = 1.0;
-        }
-        else if (e2.w == -1.0) {
-            e = e2; eq = eq2;
-            which = 2.0;
-        }
-        else if (e1.w < e2.w) {
-            e = e1; eq = eq1;
-            which = 1.0;
+        
+        if (which == 1.0) {
+            ei = vec3(e1);
+            eq = eq1;
         }
         else {
-            e = e2; eq = eq2;
-            which = 2.0;
+            ei = vec3(e2);
+            eq = eq2;
         }
         
-        vec3 g = gradient(eq,e);
+        vec3 g = gradient(eq,ei);
         
         // update depth buffer accordingly
-        vec4 proj = gl_ProjectionMatrix * vec4(vec3(e),1.0);
+        vec4 proj = gl_ProjectionMatrix * vec4(vec3(ei),1.0);
         gl_FragDepth = 0.5 + 0.5 * (proj.z / proj.w);
         
         if (which == 1.0) {
