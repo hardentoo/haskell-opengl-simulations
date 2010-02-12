@@ -69,11 +69,14 @@ ellipseF = [$here|
         
         // a_, b_, and c_ used to compute quadratic equation
         float a_ = (a * D.x * D.x) + (b * D.y * D.y) + (c * D.z * D.z);
-        float b_ = 2.0 * ((a * C.x * D.x) + (b * C.y * D.y) + (c * C.z * D.z));
+        float b_ = 2.0 * (
+            (a * C.x * D.x) + (b * C.y * D.y) + (c * C.z * D.z)
+        );
         float c_ = (a * C.x * C.x) + (b * C.y * C.y) + (c * C.z * C.z) + k;
         
-        if (b_ * b_ < 4 * a_ * c_) {
+        if (b_ * b_ < 4.0 * a_ * c_) {
             t = -1.0; // non-real answer
+            discard;
         }
         else {
             float t1 = (-b_ + sqrt(b_*b_ - 4*a_*c_)) / (2*a_);
@@ -100,14 +103,14 @@ fragmentShader = replace "$ellipse$" ellipseF [$here|
     varying float depth;
     
     void main() {
-        gl_FragDepth = depth;
+        //gl_FragDepth = depth;
         
         vec4 eq = vec4(1.0, 1.0, 1.0, 1.0);
         vec3 pos = vec3(0.0, 0.0, 0.0);
         
         float t; vec3 pnorm;
         $ellipse$ // sets variables (sigh)
-        if (t < 0.0) discard;
+        //if (t < 0.1) discard;
         
         gl_FragColor = vec4(pnorm, 1.0);
     }
