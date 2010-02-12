@@ -53,7 +53,7 @@ vertexShader = [$here|
 
 shaderPrelude :: String
 shaderPrelude = [$here|
-    const mat4 identity = mat4(
+    const mat4 identity4 = mat4(
         vec4(1.0, 0.0, 0.0, 0.0),
         vec4(0.0, 1.0, 0.0, 0.0),
         vec4(0.0, 0.0, 1.0, 0.0),
@@ -98,6 +98,17 @@ shaderPrelude = [$here|
         [ zxC-ys   yzC+xs   z*zC+c ]
         */
     }
+    
+    mat4 translate(vec3 t) {
+        mat4 m = identity4;
+        m[3] = vec4(t,0);
+        return m;
+    }
+    
+    mat4 translate(float x, float y, float z) {
+        return translate(vec3(x,y,z));
+    }
+    
 |]
 
 fragmentShader :: String
@@ -115,7 +126,7 @@ fragmentShader = shaderPrelude ++ [$here|
         float a = eq.x, b = eq.y, c = eq.z, k = -eq.w;
         // P(t) = C + t * D, t >= 0
         
-        vec3 C = vec3(emat * vec4(camera, 1.0));
+        vec3 C = vec4(camera, 1.0); // vec3(emat * vec4(camera, 1.0));
         vec3 D = offset;
         
         // a_, b_, and c_ used to compute quadratic equation
@@ -123,7 +134,7 @@ fragmentShader = shaderPrelude ++ [$here|
         float b_ = 2.0 * (
             (a * C.x * D.x) + (b * C.y * D.y) + (c * C.z * D.z)
         );
-        float c_ = (a * C.x * C.x) + (b * C.y * C.y) + (c * C.z * C.z) + k;
+        float c_ = (a * C.x * C.x) + (b * C.y * C.y) + (c * C.z * C.z) - k;
         
         vec3 point = vec3(0.0);
         float t = -1.0; // default to non-real answer
@@ -156,31 +167,17 @@ fragmentShader = shaderPrelude ++ [$here|
         vec4 eq1 = vec4(1.0, 0.7, 2.0, 1.0);
         vec4 e1 = ellipse(
             eq1,
-            rotate(30.0, vec3(1,0,0))
-            /*
-            mat4(
-                vec4(1.0, 0.0, 0.0, 0.0),
-                vec4(0.0, 1.0, 0.0, 0.0),
-                vec4(0.0, 0.0, 1.0, 0.0),
-                vec4(0.0, 0.0, 0.0, 1.0)
-            )
-            */
+            //rotate(30.0, vec3(1,0,0))
+            //translate(3.0, 0.0, -2.0)
+            identity4
         );
         
         vec4 eq2 = vec4(4.0, 0.3, 0.5, 2.0);
-        float a2 = 30.0;
         vec4 e2 = ellipse(
             eq2,
-            mat4( // the worst way to possibly do this
-                // you could rotate these...
-                vec4(1.0, 0.0, 0.0, 0.0),
-                vec4(0.0, 1.0, 0.0, 0.0),
-                vec4(0.0, 0.0, 1.0, 0.0),
-                vec4(3.0, -2.0, 0.0, 1.0)
-            )
+            identity4
         );
         
-        //
         if (e1.w < 0.0 && e2.w < 0.0) discard;
         
         // figure out which ellipse is intersecting
