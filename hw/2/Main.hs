@@ -54,12 +54,11 @@ instance Simulation EllipsoidSim where
             varying vec3 offset;
             varying float depth;
             
-            float ellipse(vec4 eq) {
-                // -- Solve for the intersection of the ray with an ellipse
-                // -- described by ax² + by² + cz² = -k
+            // -- Solve for the intersection of the ray with an ellipse
+            // -- described by ax² + by² + cz² = -k
+            float ellipse(vec4 eq, vec3 pos) {
                 float a = eq.x, b = eq.y, c = eq.z, k = -eq.w;
-                
-                // -- P(t) = C + tD, t >= 0
+                // -- P(t) = C + t * D, t >= 0
                 vec3 C = camera, D = offset;
                 
                 // -- a_, b_, and c_ used to compute quadratic equation
@@ -70,19 +69,27 @@ instance Simulation EllipsoidSim where
                 float c_ = (a * C.x * C.x)
                     + (b * C.y * C.y) + (c * C.z * C.z) + k;
                 
+                float alpha = 1.0;
                 // -- non-real answer detection
-                if ((b_ * b_) - (4 * a_ * c_) < 0.0) return(0.0);
-                else return(1.0);
+                if ((b_ * b_) - (4 * a_ * c_) < 0.0) {
+                    return -1;
+                }
+                else {
+                    float t1 = (-b_ + sqrt(b_*b_ - 4*a_*c_)) / (2*a_*c_);
+                    float t2 = (-b_ - sqrt(b_*b_ - 4*a_*c_)) / (2*a_*c_);
+                    return min(t1,t2);
+                }
             }
             
             void main() {
                 gl_FragDepth = depth;
+                vec4 e1 = vec4(1.0, 1.0, 3.0, 10.0);
+                vec3 p1 = vec3(0.0, 0.0, 0.0);
+                float t1 = ellipse(e1,p1);
+                if (t1 < 0.0) discard;
                 
-                vec4 e = vec4(2.0, 1.0, 3.0, 4.0);
-                if (ellipse(e) == 0.0) discard;
                 gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
             }
-            
         |]
         return $ sim { simShader = prog }
 
