@@ -20,37 +20,54 @@ instance Simulation EllipsoidSim where
     display sim = runAtFPS 60 $ do
         let prog = simShader sim
         color3fM 0.8 0.8 1
-        drawFloor sim
+        --drawFloor sim
         
         -- It turns out that the camera position can be taken right out of the
         -- projection matrix, so no need to bind any uniform variables.
         withProgram prog $ preservingMatrix $ do
             color3fM 0 1 1
-            renderObject Solid $ Sphere' 1 6 6
+            renderObject Solid $ Sphere' 10 6 6
         return sim
     
     initSimulation sim = do
         prog <- newProgram [$here|
             // -- vertex shader
-            varying vec3 vertex; // -- model view vertex in world coords
+            varying vec3 offset; // -- normalized vector offset of camera
             varying vec3 camera; // -- camera in world coords
             void main() {
                 // Translation is the third column of the projection inverse.
                 camera = vec3(gl_ProjectionMatrixInverse[3]);
-                
-                vertex = vec3(gl_ModelViewMatrix * gl_Vertex);
-                gl_Position = ftransform();
+                offset = normalize(
+                    camera - vec3(gl_ModelViewMatrix * gl_Vertex)
+                );
+                gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex; 
             }
         |] [$here|
             // -- fragment shader
-            varying vec3 vertex;
             varying vec3 camera;
+            varying vec3 offset;
             
             void main() {
-                // Solve for the intersection of a ray with an arbitrary 
-                vec3 ray = normalize(camera - vertex);
-                float v = 0.5;
-                gl_FragColor = vec4(v,v,v,1.0);
+                // Solve for the intersection of the ray with an ellipse
+                // described by ax² + by² + cz² = -k
+                vec4 eq = vec4(1,1,1,1); // a, b, c, k
+                float a = eq.x, b = eq.y, c = eq.z, k = -eq.w;
+                
+                // P(t) = C + tD, t >= 0
+                vec3 C = camera, D = offset;
+                
+                // a_, b_, and c_ used to compute quadratic equation
+                float a_ = (a * D.x * D.x) + (b * D.y * D.y) + (c * D.z * D.z);
+                float b_ = 2.0 * (
+                    (a * C.x * D.x) + (b * C.y * D.y) + (c * C.z * D.z)
+                );
+                float c_ = (a * C.x * C.x)
+                    + (b * C.y * C.y) + (c * C.z * C.z) + k;
+                
+                // non-real answer detection
+                if ((b_ * b_) - (4 * a_ * c_) < 0.0) discard;
+                
+                gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
             }
         |]
         return $ sim { simShader = prog }
