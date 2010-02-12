@@ -55,14 +55,16 @@ vertexShader = [$here|
     }
 |]
         
--- My graphics card chokes on anything but the simplest functions.
--- TODO: write a proper parser to automatically inline functions
--- since the compiler is incapable of doing this properly
-ellipseF :: String
-ellipseF = [$here|
-    // -- Solve for the intersection of the ray with an ellipse
-    // -- described by ax² + by² + cz² = -k
-    {
+fragmentShader :: String
+fragmentShader = [$here|
+    // -- fragment shader
+    varying vec3 camera;
+    varying vec3 offset;
+    varying float depth;
+    
+    vec4 ellipse(vec4 eq, vec3 pos) {
+        // -- Solve for the intersection of the ray with an ellipse
+        // -- described by ax² + by² + cz² = -k
         float a = eq.x, b = eq.y, c = eq.z, k = -eq.w;
         // P(t) = C + t * D, t >= 0
         vec3 C = camera, D = offset;
@@ -74,13 +76,13 @@ ellipseF = [$here|
         );
         float c_ = (a * C.x * C.x) + (b * C.y * C.y) + (c * C.z * C.z) + k;
         
-        if (b_ * b_ < 4.0 * a_ * c_) {
-            t = -1.0; // non-real answer
-        }
-        else {
-            float t1 = (-b_ + sqrt(b_*b_ - 4*a_*c_)) / (2*a_);
-            float t2 = (-b_ + sqrt(b_*b_ - 4*a_*c_)) / (2*a_);
-            if (t1 >= 0 && t2 >= 0) {
+        vec3 pnorm = vec3(0.0);
+        float t = -1.0;
+        if (b_ * b_ >= 4.0 * a_ * c_) { // real answer
+            float t1 = (-b_ + sqrt(b_ * b_ - 4.0 * a_ * c_)) / (2.0 * a_);
+            float t2 = (-b_ - sqrt(b_ * b_ - 4.0 * a_ * c_)) / (2.0 * a_);
+            
+            if (t1 >= 0.0 && t2 >= 0.0) {
                 t = min(t1,t2); // two solutions, pick nearest
             }
             else {
@@ -91,44 +93,28 @@ ellipseF = [$here|
                 2.0 * a * p.x, 2.0 * b * p.y, -2.0 * c * p.z
             ));
         }
+        return vec4(pnorm,t);
     }
-|]
-
-fragmentShader :: String
-fragmentShader = replace "$ellipse$" ellipseF [$here|
-    // -- fragment shader
-    varying vec3 camera;
-    varying vec3 offset;
-    varying float depth;
     
     void main() {
-        //gl_FragDepth = depth;
+        gl_FragDepth = depth;
         
-        float t = -1.0; vec3 pnorm;
-        vec4 eq; vec3 pos;
+        vec4 e1 = ellipse(
+            vec4(1.0, 0.7, 2.0, 1.0),
+            vec3(0.0, 0.0, 0.0)
+        );
         
-        eq = vec4(1.0, 1.0, 1.0, 1.0);
-        pos = vec3(0.0, 0.0, 0.0);
-        $ellipse$ // sets variables (sigh)
-        float e1 = t;
+        vec4 e2 = ellipse(
+            vec4(4.0, 0.3, 0.5, 2.0),
+            vec3(3.0, 0.0, -2.0)
+        );
         
-        eq = vec4(1.0, 1.0, 1.0, 1.0);
-        pos = vec3(3.0, 0.0, 0.0);
-        vec3 pnorm1 = pnorm;
-        $ellipse$
-        float e2 = t;
-        vec3 pnorm2 = pnorm;
+        // not sure why < 0 doesn't work >_<
+        if (e1.w == -1.0 && e2.w == -1) discard;
         
-        float tt = 0.0;
-        if (e1 >= 0.0 && e2 >= 0.0) {
-            tt = min(e1,e2);
-        }
-        else {
-            tt = max(e1,e2);
-        }
-        if (tt < 0) discard;
+        vec4 e = min(e1,e2); // closest ellipse
         
-        gl_FragColor = vec4(pnorm, 1.0);
+        gl_FragColor = vec4(vec3(e), 1.0);
     }
 |]
         
