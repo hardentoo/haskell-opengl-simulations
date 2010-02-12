@@ -187,30 +187,31 @@ class Simulation a where
             let Position posX posY = pos
             atomically $ inputVar $$~ \i -> i { mousePos = (posX,posY) }
             sim <- atomically $ takeTMVar simVar
+            sim' <- mouseMove sim pos
             atomically $ putTMVar simVar sim'
         
-        {-
         -- more mouse polling (when buttons are down)
-        (motionCallback $=) . Just $ \pos -> atomically $ do
+        (motionCallback $=) . Just $ \pos -> do
             let Position posX posY = pos
-            inputVar $$~ \i -> i { mousePos = (posX,posY) }
-            simVar $$~ \sim -> mouseMove sim pos
+            atomically $ inputVar $$~ \i -> i { mousePos = (posX,posY) }
+            sim <- atomically $ takeTMVar simVar
+            sim' <- mouseMove sim pos
+            atomically $ putTMVar simVar sim'
         
         -- bind keyboard callback
         (keyboardMouseCallback $=) . Just $
             \key keyState modifiers pos -> do
                 when (key == Char '\27') leaveMainLoop -- esc
                 -- update key set
-                atomically $ do
-                    inputVar $$~ \i -> i {
-                        keySet = ($ keySet i) $ case keyState of
-                            Down -> Set.insert key
-                            Up -> Set.delete key
-                    }
+                atomically $ inputVar $$~ \i -> i {
+                    keySet = ($ keySet i) $ case keyState of
+                        Down -> Set.insert key
+                        Up -> Set.delete key
+                }
                 -- run user callback
-                atomically $ do
-                    simVar $$~ \sim -> keyboard sim key keyState modifiers pos
-        -}
+                sim <- atomically $ takeTMVar simVar
+                sim' <- keyboard sim key keyState modifiers pos
+                atomically $ putTMVar simVar sim'
         
         -- navigation gets its own thread with regular atomic updates
         forkIO $ forever $ runAtFPS 100 $ atomically $ do
