@@ -1,4 +1,5 @@
 {-# LANGUAGE MultiParamTypeClasses, FlexibleInstances #-}
+{-# LANGUAGE UndecidableInstances, OverlappingInstances #-}
 
 module Data.GL.Vector (
     Vector(..), dot,
@@ -16,25 +17,18 @@ class Real a => Vector t a where
     
     (<^>) :: t a -> t a -> t a -- cross product
     
-    (*>) :: a -> t a -> t a -- left scalar multiply
-    f *> v = toVector $ map (*f) $ fromVector v
-    (<*) :: t a -> a -> t a -- right scalar multiply
-    (<*) = flip (*>)
-    
-    (+>) :: a -> t a -> t a -- left scalar addition
-    f +> v = toVector $ map (+f) $ fromVector v
-    (<+) :: t a -> a -> t a -- right scalar addition
-    (<+) = flip (+>)
-    
-    (<+>) :: t a -> t a -> t a -- vector addition
-    v1 <+> v2 = toVector $ zipWith (+) (fromVector v1) (fromVector v2)
-    
-    (<->) :: t a -> t a -> t a -- vector subtraction
-    v1 <-> v2 = toVector $ zipWith (-) (fromVector v1) (fromVector v2)
-    
     fromVector :: t a -> [a]
     toVector :: [a] -> t a
     
+instance (Num a, Vector t a, Show (t a), Eq (t a)) => Num (t a) where
+    v1 + v2 = toVector $ zipWith (+) (fromVector v1) (fromVector v2)
+    v1 * v2 = toVector $ zipWith (*) (fromVector v1) (fromVector v2)
+    v1 - v2 = toVector $ zipWith (-) (fromVector v1) (fromVector v2)
+    negate = toVector . map negate . fromVector
+    abs = toVector . map abs . fromVector
+    signum = toVector . map signum . fromVector
+    fromInteger x = toVector $ map fromInteger $ repeat x
+
 -- alias for <.>
 dot :: (Vector t a) => t a -> t a -> a
 dot = (<.>)
@@ -49,11 +43,19 @@ instance Real a => Vector Vector3 a where
             y = (z1 * x2 - x1 * z2)
             z = (x1 * y2 - y1 * x2)
     
-    (Vector3 x1 y1 z1) <+> (Vector3 x2 y2 z2) = 
-        Vector3 (x1 + x2) (y1 + y2) (z1 + z2)
-    
     fromVector (Vector3 x y z) = [x,y,z]
     toVector (x:y:z:_) = Vector3 x y z
+    
+instance (Num a, Vector Vector3 a) => Num (Vector3 a) where
+    (Vector3 x1 y1 z1) + (Vector3 x2 y2 z2) = 
+        Vector3 (x1 + x2) (y1 + y2) (z1 + z2)
+    (Vector3 x1 y1 z1) * (Vector3 x2 y2 z2) = 
+        Vector3 (x1 * x2) (y1 * y2) (z1 * z2)
+    (Vector3 x1 y1 z1) - (Vector3 x2 y2 z2) = 
+        Vector3 (x1 - x2) (y1 - y2) (z1 - z2)
+    abs (Vector3 x y z) = Vector3 (abs x) (abs y) (abs z)
+    signum (Vector3 x y z) = Vector3 (signum x) (signum y) (signum z)
+    fromInteger x = Vector3 (fromInteger x) (fromInteger x) (fromInteger x)
     
 instance Real a => Vector Vertex3 a where
     (Vertex3 x1 y1 z1) <.> (Vertex3 x2 y2 z2) = 
@@ -65,11 +67,19 @@ instance Real a => Vector Vertex3 a where
             y = (z1 * x2 - x1 * z2)
             z = (x1 * y2 - y1 * x2)
     
-    (Vertex3 x1 y1 z1) <+> (Vertex3 x2 y2 z2) = 
-        Vertex3 (x1 + x2) (y1 + y2) (z1 + z2)
-    
     fromVector (Vertex3 x y z) = [x,y,z]
     toVector (x:y:z:_) = Vertex3 x y z
+    
+instance (Num a, Vector Vertex3 a) => Num (Vertex3 a) where
+    (Vertex3 x1 y1 z1) + (Vertex3 x2 y2 z2) = 
+        Vertex3 (x1 + x2) (y1 + y2) (z1 + z2)
+    (Vertex3 x1 y1 z1) * (Vertex3 x2 y2 z2) = 
+        Vertex3 (x1 * x2) (y1 * y2) (z1 * z2)
+    (Vertex3 x1 y1 z1) - (Vertex3 x2 y2 z2) = 
+        Vertex3 (x1 - x2) (y1 - y2) (z1 - z2)
+    abs (Vertex3 x y z) = Vertex3 (abs x) (abs y) (abs z)
+    signum (Vertex3 x y z) = Vertex3 (signum x) (signum y) (signum z)
+    fromInteger x = Vertex3 (fromInteger x) (fromInteger x) (fromInteger x)
 
 -- convenience functions for vector-esque operations
 

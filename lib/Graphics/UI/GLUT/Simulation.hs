@@ -69,16 +69,13 @@ class Simulation a where
     }
     
     initCamera :: a -> IO Camera
-    initCamera sim = do
-        m <- newMatrix $ do
-            rotate 30 $ vector3f 1 0 0
-            translate $ vector3f 0 (-2) (-4)
-        return $ Camera {
-            cameraFOV = 60,
-            cameraNear = 0.1,
-            cameraFar = 100000,
-            cameraMatrix = m
-        }
+    initCamera sim = return $ Camera {
+        cameraFOV = 60,
+        cameraNear = 0.1,
+        cameraFar = 100000,
+        cameraMatrix = mRotate 30 (vector3f 1 0 0)
+            $ mTranslate (vector3f 0 (-2) (-4)) identity
+    }
     
     initModes :: a -> [ DisplayMode ]
     initModes = const [ DoubleBuffered, RGBMode, WithDepthBuffer ]
@@ -127,31 +124,33 @@ class Simulation a where
         matrixMode $= Modelview 0
     
     navigate :: a -> InputState -> Camera -> Camera
-    navigate sim input cam = cam { cameraMatrix = mat' }
-        where
-            keys = keySet input
-            pos = mousePos input
-            prevPos = prevMousePos input
-            
-            mat = cameraMatrix cam
-            mat' = foldl (\m k -> keyf k m) mat $ Set.elems keys
-            
-            dt = 0.05
-            drx = 0.05 * (fromIntegral $ fst pos - fst prevPos)
-            dry = -0.05 * (fromIntegral $ snd pos - snd prevPos)
-            
-            keyf :: Key -> GLmatrix GLdouble -> GLmatrix GLdouble
-            keyf (Char 'w') = mTranslate (vector3d 0 0 dt) -- forward
-            keyf (Char 's') = mTranslate (vector3d 0 0 (-dt)) -- back
-            keyf (Char 'a') = mTranslate (vector3d dt 0 0) -- strafe left
-            keyf (Char 'd') = mTranslate (vector3d (-dt) 0 0) -- strafe right
-            keyf (Char 'q') = mTranslate (vector3d 0 (-dt) 0) -- up
-            keyf (Char 'z') = mTranslate (vector3d 0 dt 0) -- down
-            keyf (MouseButton LeftButton) =
-                mRotate dry (vector3d 1 0 0) . mRotate (-drx) (vector3d 0 1 0)
-            keyf (MouseButton RightButton) =
-                mRotate drx (vector3d 0 0 1)
-            keyf _ = id
+    navigate sim input cam = cam' where
+        cam' = cam { cameraMatrix = mat' }
+        mat' = foldl (\m k -> tKey k $ rKey k m) (cameraMatrix cam) keys
+        
+        keys = Set.elems $ keySet input
+        pos = mousePos input
+        prevPos = prevMousePos input
+        
+        dt = 0.05
+        drx = 0.05 * (fromIntegral $ fst pos - fst prevPos)
+        dry = -0.05 * (fromIntegral $ snd pos - snd prevPos)
+        
+        tKey :: Key -> GLmatrix GLdouble -> GLmatrix GLdouble
+        tKey (Char 'w') = mTranslate (vector3d 0 0 dt) -- forward
+        tKey (Char 's') = mTranslate (vector3d 0 0 (-dt)) -- back
+        tKey (Char 'a') = mTranslate (vector3d dt 0 0) -- strafe left
+        tKey (Char 'd') = mTranslate (vector3d (-dt) 0 0) -- strafe right
+        tKey (Char 'q') = mTranslate (vector3d 0 (-dt) 0) -- up
+        tKey (Char 'z') = mTranslate (vector3d 0 dt 0) -- down
+        tKey _ = id
+        
+        rKey :: Key -> GLmatrix GLdouble -> GLmatrix GLdouble
+        rKey (MouseButton LeftButton) =
+            mRotate dry (vector3d 1 0 0) . mRotate (-drx) (vector3d 0 1 0)
+        rKey (MouseButton RightButton) =
+            mRotate drx (vector3d 0 0 1)
+        rKey _ = id
     
     keyboard :: a -> Key -> KeyState -> Modifiers -> Position -> IO a
     keyboard sim key keyState modifiers pos = return sim
@@ -214,7 +213,7 @@ class Simulation a where
                 atomically $ putTMVar simVar sim'
         
         -- navigation gets its own thread with regular atomic updates
-        forkIO $ forever $ runAtFPS 100 $ atomically $ do
+        forkIO $ forever $ runAtFPS 50 $ atomically $ do
             sim <- readTMVar simVar
             input <- readTMVar inputVar
             cameraVar $$~ navigate sim input
