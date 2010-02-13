@@ -2,7 +2,6 @@
 {-# LANGUAGE UndecidableInstances #-}
 
 module Data.GL.Vector (
-    Vector(..), dot,
     vector1f, vector1d, vector2f, vector2d,
     vector3f, vector3d, vector4f, vector4d,
     vertex1f, vertex1d, vertex2f, vertex2d,
@@ -11,120 +10,88 @@ module Data.GL.Vector (
     texCoord1f, texCoord1d, texCoord2f, texCoord2d,
     texCoord3f, texCoord3d, texCoord4f, texCoord4d
 ) where
-import Graphics.UI.GLUT
 
-class Real a => Vector t a where
-    vectorList :: t a -> [a]
-    listVector :: [a] -> t a
-    
-    fromVector :: Vector u a => t a -> u a
-    fromVector = listVector . vectorList
-    
-    (<.>) :: t a -> t a -> a -- dot product
-    v1 <.> v2 = sum $ zipWith (*) (vectorList v1) (vectorList v2)
-    (<^>) :: t a -> t a -> t a -- cross product
-    _ <^> _ = error "Cross product is not defined for this dimension"
+import qualified Graphics.UI.GLUT as GL
+import Graphics.UI.GLUT hiding (Matrix)
+import Numeric.LinearAlgebra
 
--- alias for <.>
-dot :: (Vector t a) => t a -> t a -> a
-dot = (<.>)
+class Vectorize t a where
+    toVec :: t a -> Vector a
+    fromVec :: Vector a -> t a
 
--- Real instances, vectors
-instance Real a => Vector Vector1 a where
-    vectorList (Vector1 x) = [x]
-    listVector (x:_) = Vector1 x
+-- vectorized vectors
+instance MatrixComponent c => Vectorize Vector1 c where
+    toVec (Vector1 x) = 1 |> [x]
+    fromVec v = Vector1 x
+        where [x] = toList v
 
-instance Real a => Vector Vector2 a where
-    vectorList (Vector2 x y) = [x,y]
-    listVector (x:y:_) = Vector2 x y
+instance MatrixComponent c => Vectorize Vector2 c where
+    toVec (Vector2 x y) = 2 |> [x,y]
+    fromVec v = Vector2 x y
+        where [x,y] = toList v
 
-instance Real a => Vector Vector3 a where
-    vectorList (Vector3 x y z) = [x,y,z]
-    listVector (x:y:z:_) = Vector3 x y z
-    (Vector3 x1 y1 z1) <^> (Vector3 x2 y2 z2) = Vector3 x y z
-        where
-            x = (y1 * z2 - y1 * z2)
-            y = (z1 * x2 - x1 * z2)
-            z = (x1 * y2 - y1 * x2)
-    
-instance Real a => Vector Vector4 a where
-    vectorList (Vector4 x y z w) = [x,y,z,w]
-    listVector (x:y:z:w:_) = Vector4 x y z w
+instance MatrixComponent c => Vectorize Vector3 c where
+    toVec (Vector3 x y z) = 3 |> [x,y,z]
+    fromVec v = Vector3 x y z
+        where [x,y,z] = toList v
 
--- Real instances, vertexes
-instance Real a => Vector Vertex1 a where
-    vectorList (Vertex1 x) = [x]
-    listVector (x:_) = Vertex1 x
+instance MatrixComponent c => Vectorize Vector4 c where
+    toVec (Vector4 x y z w) = 4 |> [x,y,z,w]
+    fromVec v = Vector4 x y z w
+        where [x,y,z,w] = toList v
 
-instance Real a => Vector Vertex2 a where
-    vectorList (Vertex2 x y) = [x,y]
-    listVector (x:y:_) = Vertex2 x y
-    (Vertex2 x1 y1) <.> (Vertex2 x2 y2) = (x1 * x2) + (y1 + y2)
+-- vectorized vertexes
+instance MatrixComponent c => Vectorize Vertex1 c where
+    toVec (Vertex1 x) = 1 |> [x]
+    fromVec v = Vertex1 x
+        where [x] = toList v
 
-instance Real a => Vector Vertex3 a where
-    vectorList (Vertex3 x y z) = [x,y,z]
-    listVector (x:y:z:_) = Vertex3 x y z
-    (Vertex3 x1 y1 z1) <^> (Vertex3 x2 y2 z2) = Vertex3 x y z
-        where
-            x = (y1 * z2 - y1 * z2)
-            y = (z1 * x2 - x1 * z2)
-            z = (x1 * y2 - y1 * x2)
-    
-instance Real a => Vector Vertex4 a where
-    vectorList (Vertex4 x y z w) = [x,y,z,w]
-    listVector (x:y:z:w:_) = Vertex4 x y z w
+instance MatrixComponent c => Vectorize Vertex2 c where
+    toVec (Vertex2 x y) = 2 |> [x,y]
+    fromVec v = Vertex2 x y
+        where [x,y] = toList v
 
--- Real instances, colors
-instance Real a => Vector Color3 a where
-    vectorList (Color3 x y z) = [x,y,z]
-    listVector (x:y:z:_) = Color3 x y z
-    (Color3 x1 y1 z1) <^> (Color3 x2 y2 z2) = Color3 x y z
-        where
-            x = (y1 * z2 - y1 * z2)
-            y = (z1 * x2 - x1 * z2)
-            z = (x1 * y2 - y1 * x2)
- 
-instance Real a => Vector Color4 a where
-    vectorList (Color4 x y z w) = [x,y,z,w]
-    listVector (x:y:z:w:_) = Color4 x y z w
+instance MatrixComponent c => Vectorize Vertex3 c where
+    toVec (Vertex3 x y z) = 3 |> [x,y,z]
+    fromVec v = Vertex3 x y z
+        where [x,y,z] = toList v
 
--- Real instances, texture coordinates
-instance Real a => Vector TexCoord1 a where
-    vectorList (TexCoord1 x) = [x]
-    listVector (x:_) = TexCoord1 x
+instance MatrixComponent c => Vectorize Vertex4 c where
+    toVec (Vertex4 x y z w) = 4 |> [x,y,z,w]
+    fromVec v = Vertex4 x y z w
+        where [x,y,z,w] = toList v
 
-instance Real a => Vector TexCoord2 a where
-    vectorList (TexCoord2 x y) = [x,y]
-    listVector (x:y:_) = TexCoord2 x y
+-- vectorized colors
+instance MatrixComponent c => Vectorize Color3 c where
+    toVec (Color3 x y z) = 3 |> [x,y,z]
+    fromVec v = Color3 x y z
+        where [x,y,z] = toList v
 
-instance Real a => Vector TexCoord3 a where
-    vectorList (TexCoord3 x y z) = [x,y,z]
-    listVector (x:y:z:_) = TexCoord3 x y z
-    (TexCoord3 x1 y1 z1) <^> (TexCoord3 x2 y2 z2) = TexCoord3 x y z
-        where
-            x = (y1 * z2 - y1 * z2)
-            y = (z1 * x2 - x1 * z2)
-            z = (x1 * y2 - y1 * x2)
-    
-instance Real a => Vector TexCoord4 a where
-    vectorList (TexCoord4 x y z w) = [x,y,z,w]
-    listVector (x:y:z:w:_) = TexCoord4 x y z w
+instance MatrixComponent c => Vectorize Color4 c where
+    toVec (Color4 x y z w) = 4 |> [x,y,z,w]
+    fromVec v = Color4 x y z w
+        where [x,y,z,w] = toList v
 
--- generic Num instances
-instance (Num a, Vector t a, Show (t a), Eq (t a)) => Num (t a) where
-    v1 + v2 = listVector $ zipWith (+) (vectorList v1) (vectorList v2)
-    v1 * v2 = listVector $ zipWith (*) (vectorList v1) (vectorList v2)
-    v1 - v2 = listVector $ zipWith (-) (vectorList v1) (vectorList v2)
-    negate = listVector . map negate . vectorList
-    abs = listVector . map abs . vectorList
-    signum = listVector . map signum . vectorList
-    fromInteger x = listVector $ map fromInteger $ repeat x
+-- vectorized texcoords
+instance MatrixComponent c => Vectorize TexCoord1 c where
+    toVec (TexCoord1 x) = 1 |> [x]
+    fromVec v = TexCoord1 x
+        where [x] = toList v
 
-instance (Fractional a, Show (t a), Eq (t a), Vector t a)
-    => Fractional (t a) where
-    v1 / v2 = listVector $ zipWith (/) (vectorList v1) (vectorList v2)
-    recip = listVector . map recip . vectorList
-    fromRational = listVector . repeat . fromRational
+instance MatrixComponent c => Vectorize TexCoord2 c where
+    toVec (TexCoord2 x y) = 2 |> [x,y]
+    fromVec v = TexCoord2 x y
+        where [x,y] = toList v
+
+instance MatrixComponent c => Vectorize TexCoord3 c where
+    toVec (TexCoord3 x y z) = 3 |> [x,y,z]
+    fromVec v = TexCoord3 x y z
+        where [x,y,z] = toList v
+
+instance MatrixComponent c => Vectorize TexCoord4 c where
+    toVec (TexCoord4 x y z w) = 4 |> [x,y,z,w]
+    fromVec v = TexCoord4 x y z w
+        where [x,y,z,w] = toList v
 
 -- litany of convenience functions for vector-esque operations
 vector1f :: Real a => a -> Vector1 GLfloat
