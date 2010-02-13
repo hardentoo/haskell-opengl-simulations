@@ -1,9 +1,7 @@
 {-# LANGUAGE FlexibleContexts, FlexibleInstances, MultiParamTypeClasses #-}
 
 module Data.GL.Matrix (
-    translateM, rotateM, toGLmat,
-    module Numeric.LinearAlgebra,
-    module Numeric.LinearAlgebra.Transform
+    translateM, rotateM, toGLmat
 ) where
 import Graphics.UI.GLUT hiding (Matrix(..),translate,rotate)
 import qualified Graphics.UI.GLUT as GL

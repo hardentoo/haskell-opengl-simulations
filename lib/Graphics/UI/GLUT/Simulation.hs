@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleInstances, MultiParamTypeClasses #-}
 -- easily extensible GLUT simulation application with reasonable defaults
 module Graphics.UI.GLUT.Simulation (
     module Data.GL,
@@ -5,7 +6,7 @@ module Graphics.UI.GLUT.Simulation (
     Simulation(..), SimWindow(..), Camera(..), KeySet,
     runAtFPS, runWithFPS, elapsed, exitSimulation
 ) where
-import Graphics.UI.GLUT hiding (Matrix,newMatrix)
+import Graphics.UI.GLUT hiding (Matrix,newMatrix,rotate,translate)
 import Data.GL
 import Data.Time.Clock (getCurrentTime, diffUTCTime)
 
@@ -21,6 +22,17 @@ import Data.Maybe (isJust,fromJust)
 
 import qualified Data.Set as Set
 import Control.Concurrent (forkIO,threadDelay)
+
+import Numeric.LinearAlgebra.Transform
+import Numeric.LinearAlgebra hiding (reshape)
+
+instance Element GLdouble
+instance Normed (Matrix GLdouble)
+instance Linear Vector GLdouble
+instance Container Vector GLdouble
+instance Container Matrix GLdouble
+instance Field GLdouble
+instance Num (Vector GLdouble)
 
 -- STM TMVar versions of Data.StateVar shorthand operators
 ($$~) :: TMVar a -> (a -> a) -> STM ()
@@ -40,7 +52,7 @@ data Camera = Camera {
     cameraFOV :: GLdouble,
     cameraNear :: GLdouble,
     cameraFar :: GLdouble,
-    cameraMatrix :: GLmatrix GLdouble
+    cameraMatrix :: Matrix GLdouble
 } deriving Show
 
 type KeySet = Set.Set Key
@@ -68,13 +80,13 @@ class Simulation a where
         winBG = Color4 0.2 0.2 0.2 1
     }
     
-    initCamera :: a -> IO Camera
-    initCamera sim = return $ Camera {
+    initCamera :: a -> Camera
+    initCamera sim = Camera {
         cameraFOV = 60,
         cameraNear = 0.1,
         cameraFar = 100000,
-        cameraMatrix = mRotate 30 (vector3f 1 0 0)
-            $ mTranslate (vector3f 0 (-2) (-4)) identity
+        cameraMatrix = rotate (AxisAngle 30 $ 3 |> [1,0,0])
+            $ translation (3 |> [0,-2,-4])
     }
     
     initModes :: a -> [ DisplayMode ]
@@ -125,8 +137,10 @@ class Simulation a where
     
     navigate :: a -> InputState -> Camera -> Camera
     navigate sim input cam = cam' where
-        cam' = cam { cameraMatrix = mat' }
-        mat' = foldl (\m k -> tKey k $ rKey k m) (cameraMatrix cam) keys
+        cam' = cam { cameraMatrix = rMat <> tMat }
+        
+        rMat = product $ map rKey keys
+        tMat = translation (sum $ map tKey $ keys)
         
         keys = Set.elems $ keySet input
         pos = mousePos input
@@ -136,21 +150,20 @@ class Simulation a where
         drx = 0.05 * (fromIntegral $ fst pos - fst prevPos)
         dry = -0.05 * (fromIntegral $ snd pos - snd prevPos)
         
-        tKey :: Key -> GLmatrix GLdouble -> GLmatrix GLdouble
-        tKey (Char 'w') = mTranslate (vector3d 0 0 dt) -- forward
-        tKey (Char 's') = mTranslate (vector3d 0 0 (-dt)) -- back
-        tKey (Char 'a') = mTranslate (vector3d dt 0 0) -- strafe left
-        tKey (Char 'd') = mTranslate (vector3d (-dt) 0 0) -- strafe right
-        tKey (Char 'q') = mTranslate (vector3d 0 (-dt) 0) -- up
-        tKey (Char 'z') = mTranslate (vector3d 0 dt 0) -- down
-        tKey _ = id
+        tKey :: Key -> Vector GLdouble
+        tKey (Char 'w') = 3 |> [0,0,dt] -- forward
+        tKey (Char 's') = 3 |> [0,0,-dt] -- back
+        tKey (Char 'a') = 3 |> [dt,0,0] -- strafe left
+        tKey (Char 'd') = 3 |> [-dt,0,0] -- strafe right
+        tKey (Char 'q') = 3 |> [0,-dt,0] -- up
+        tKey (Char 'z') = 3 |> [0,dt,0] -- down
+        tKey _ = 3 |> [0,0,0]
         
-        rKey :: Key -> GLmatrix GLdouble -> GLmatrix GLdouble
+        rKey :: Key -> Matrix GLdouble
         rKey (MouseButton LeftButton) =
-            mRotate dry (vector3d 1 0 0) . mRotate (-drx) (vector3d 0 1 0)
-        rKey (MouseButton RightButton) =
-            mRotate drx (vector3d 0 0 1)
-        rKey _ = id
+            rotate (AxisX dry) $ rotation (AxisY (-drx))
+        rKey (MouseButton RightButton) = rotation (AxisZ drx)
+        rKey _ = ident 4
     
     keyboard :: a -> Key -> KeyState -> Modifiers -> Position -> IO a
     keyboard sim key keyState modifiers pos = return sim
@@ -172,8 +185,7 @@ class Simulation a where
             prevMousePos = (0,0)
         }
         
-        camera <- initCamera sim
-        cameraVar <- atomically $ newTMVar camera
+        cameraVar <- atomically $ newTMVar (initCamera sim)
         
         (reshapeCallback $=) . Just $ \size -> do
             camera <- atomically $ readTMVar cameraVar
@@ -227,11 +239,11 @@ class Simulation a where
             
             camera <- atomically $ readTMVar cameraVar
             projection sim camera
-            multMatrix $ cameraMatrix camera
+            multMatrix =<< toGLmat (cameraMatrix camera)
             matrixMode $= Modelview 0
             
             loadIdentity
-            rotate (-90) $ vector3f 1 0 0 -- z-up
+            rotateM (-90) $ vector3f 1 0 0 -- z-up
             
             sim' <- postDisplay =<< display =<< preDisplay sim
             atomically $ putTMVar simVar sim'
