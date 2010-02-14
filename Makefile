@@ -24,7 +24,6 @@ hw2:
 hw2i:
 	ghci \
 		hw/2/Main.hs \
-		lib/Graphics/UI/GLUT/Simulation.hs \
 		lib/Graphics/UI/Simulation3D/Simulation.hs \
 		lib/Graphics/UI/Simulation3D/Util.hs \
 		lib/Graphics/UI/Simulation3D/Shader.hs \
