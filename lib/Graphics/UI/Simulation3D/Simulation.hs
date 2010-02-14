@@ -1,13 +1,13 @@
 {-# LANGUAGE FlexibleInstances, MultiParamTypeClasses #-}
 -- easily extensible GLUT simulation application with reasonable defaults
-module Graphics.UI.GLUT.Simulation (
-    module Data.GL,
+module Graphics.UI.Simulation3D (
     module Graphics.UI.GLUT,
+    module Graphics.UI.Simulation3D.Util,
     Simulation(..), SimWindow(..), Camera(..), KeySet,
     runAtFPS, runWithFPS, elapsed, exitSimulation
 ) where
-import Graphics.UI.GLUT hiding (Matrix,newMatrix,rotate,translate)
-import Data.GL
+import Graphics.UI.GLUT hiding (Matrix(..),newMatrix,rotate,translate)
+import Graphics.UI.Simulation3D.Util
 import Data.Time.Clock (getCurrentTime, diffUTCTime)
 
 import System.IO.Unsafe (unsafePerformIO)

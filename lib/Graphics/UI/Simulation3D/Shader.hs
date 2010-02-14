@@ -1,5 +1,5 @@
 {-# LANGUAGE QuasiQuotes #-} 
-module Control.GL.Shader (
+module Graphics.UI.Simulation3D.Shader (
     here, newProgram, withProgram, bindProgram
 ) where
 import Graphics.UI.GLUT
