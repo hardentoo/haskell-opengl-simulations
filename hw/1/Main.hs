@@ -3,7 +3,7 @@
 
 {-# LANGUAGE QuasiQuotes #-} -- for magical heredocs
 module Main where
-import Graphics.UI.GLUT.Simulation
+import Graphics.UI.Simulation3D
 import Control.GL.Shader (newProgram,withProgram,bindProgram,here)
 import Control.Monad (forM_)
 
