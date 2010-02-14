@@ -26,14 +26,6 @@ import Control.Concurrent (forkIO,threadDelay)
 import Numeric.LinearAlgebra.Transform
 import Numeric.LinearAlgebra hiding (reshape)
 
-instance Element GLdouble
-instance Normed (Matrix GLdouble)
-instance Linear Vector GLdouble
-instance Container Vector GLdouble
-instance Container Matrix GLdouble
-instance Field GLdouble
-instance Num (Vector GLdouble)
-
 -- STM TMVar versions of Data.StateVar shorthand operators
 ($$~) :: TMVar a -> (a -> a) -> STM ()
 tm $$~ f = putTMVar tm . f =<< takeTMVar tm
@@ -52,7 +44,7 @@ data Camera = Camera {
     cameraFOV :: GLdouble,
     cameraNear :: GLdouble,
     cameraFar :: GLdouble,
-    cameraMatrix :: Matrix GLdouble
+    cameraMatrix :: Matrix Double
 } deriving Show
 
 type KeySet = Set.Set Key
@@ -150,7 +142,7 @@ class Simulation a where
         drx = 0.05 * (fromIntegral $ fst pos - fst prevPos)
         dry = -0.05 * (fromIntegral $ snd pos - snd prevPos)
         
-        tKey :: Key -> Vector GLdouble
+        tKey :: Key -> Vector Double
         tKey (Char 'w') = 3 |> [0,0,dt] -- forward
         tKey (Char 's') = 3 |> [0,0,-dt] -- back
         tKey (Char 'a') = 3 |> [dt,0,0] -- strafe left
@@ -159,7 +151,7 @@ class Simulation a where
         tKey (Char 'z') = 3 |> [0,dt,0] -- down
         tKey _ = 3 |> [0,0,0]
         
-        rKey :: Key -> Matrix GLdouble
+        rKey :: Key -> Matrix Double
         rKey (MouseButton LeftButton) =
             rotate (AxisX dry) $ rotation (AxisY (-drx))
         rKey (MouseButton RightButton) = rotation (AxisZ drx)
