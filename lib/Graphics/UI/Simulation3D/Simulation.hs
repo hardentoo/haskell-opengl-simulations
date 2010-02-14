@@ -3,9 +3,12 @@
 module Graphics.UI.Simulation3D (
     module Graphics.UI.GLUT,
     module Graphics.UI.Simulation3D.Util,
+    module Numeric.LinearAlgebra,
+    module Numeric.LinearAlgebra.Transform,
     Simulation(..), SimWindow(..), Camera(..), KeySet,
     runAtFPS, runWithFPS, elapsed, exitSimulation
 ) where
+
 import Graphics.UI.GLUT hiding (Matrix(..),newMatrix,rotate,translate)
 import Graphics.UI.Simulation3D.Util
 import Data.Time.Clock (getCurrentTime, diffUTCTime)
@@ -24,7 +27,7 @@ import qualified Data.Set as Set
 import Control.Concurrent (forkIO,threadDelay)
 
 import Numeric.LinearAlgebra.Transform
-import Numeric.LinearAlgebra hiding (reshape)
+import Numeric.LinearAlgebra hiding (scale,reshape)
 
 -- STM TMVar versions of Data.StateVar shorthand operators
 ($$~) :: TMVar a -> (a -> a) -> STM ()
@@ -55,14 +58,8 @@ data InputState = InputState {
 }
 
 class Simulation a where
-    preDisplay :: a -> IO a
-    preDisplay = return
-    
     display :: a -> IO a
     display = return
-    
-    postDisplay :: a -> IO a
-    postDisplay = return
     
     window :: a -> SimWindow
     window = const $ SimWindow {
@@ -131,8 +128,11 @@ class Simulation a where
     navigate sim input cam = cam' where
         cam' = cam { cameraMatrix = rMat <> tMat }
         
-        rMat = product $ map rKey keys
-        tMat = translation (sum $ map tKey $ keys)
+        rMat, tMat :: Matrix Double
+        rMat = product $ map rKey keys ++ [ident 4]
+        tMat = case map tKey keys of
+            [] -> ident 4
+            xs -> translation (sum xs)
         
         keys = Set.elems $ keySet input
         pos = mousePos input
@@ -237,7 +237,7 @@ class Simulation a where
             loadIdentity
             rotateM (-90) $ vector3f 1 0 0 -- z-up
             
-            sim' <- postDisplay =<< display =<< preDisplay sim
+            sim' <- display sim
             atomically $ putTMVar simVar sim'
             
             flush
