@@ -15,7 +15,8 @@ module Graphics.UI.Simulation3D.Base (
     getMousePos, setMousePos,
     getPrevMousePos, setPrevMousePos,
     getWindow, setWindow,
-    getWindowSize, setWindowSize
+    getWindowSize, setWindowSize,
+    getWindowBG, setWindowBG
 ) where
 
 import Graphics.UI.GLUT hiding (Matrix(..),newMatrix,rotate,translate)
@@ -178,6 +179,13 @@ class Simulation a where
     setWindowSize size = setWindow . f =<< getWindow
         where f s = s { simWinSize = size }
     
+    getWindowBG :: SimGet a (Color4 GLclampf)
+    getWindowBG = simWinBG <$> getWindow
+    
+    setWindowBG :: SimSet a (Color4 GLclampf)
+    setWindowBG size = setWindow . f =<< getWindow
+        where f s = s { simWinBG = size }
+    
     -- Exported functions end here. Helpers below.
     
     initWindow :: SimState a -> IO ()
@@ -205,92 +213,100 @@ class Simulation a where
     bindCallbacks :: SimState a -> IO ()
     bindCallbacks state = do
         stateVar <- newMVar state
-        bindReshape stateVar
+        mapM ($ stateVar) [
+                bindReshape,
+                bindPassiveMotion,
+                bindActiveMotion,
+                bindKeyboardMouse,
+                bindDisplay
+            ]
         
         actionOnWindowClose $= MainLoopReturns -- ghci stays running
     
     -- callback to set projection matrix and update window state
     bindReshape :: MVar (SimState a) -> IO ()
-    bindReshape stateVar = do
-        (reshapeCallback $=) . Just $ \size@(Size w h) -> do
-            -- get state and update window size
-            let uSize s = s { simWindow = (simWindow s) { simWinSize = (w,h) } }
-            state <- uSize <$> takeMVar stateVar
-            -- update viewport and set new projection
-            viewport $= (Position 0 0, size)
-            
-            ST.execStateT projection state
-            
-            matrixMode $= Modelview 0
-            -- call user's reshape callback
-            putMVar stateVar =<< ST.execStateT onReshape state
+    bindReshape stateVar = (reshapeCallback $=) . Just $ \size@(Size w h) -> do
+        -- get state and update window size
+        let uSize s = s { simWindow = (simWindow s) { simWinSize = (w,h) } }
+        state <- uSize <$> takeMVar stateVar
+        -- update viewport and set new projection
+        viewport $= (Position 0 0, size)
+        
+        ST.execStateT projection state
+        
+        matrixMode $= Modelview 0
+        -- call user's reshape callback
+        putMVar stateVar =<< ST.execStateT onReshape state
     
     -- bind passive motion callback for mouse movement polling
     bindPassiveMotion :: MVar (SimState a) -> IO ()
-    bindPassiveMotion stateVar = do
-        (passiveMotionCallback $=) . Just $ \pos -> do
-            let Position posX posY = pos
-                cb = setMousePos (posX,posY) >> onMouseMove
-            state <- takeMVar stateVar
-            putMVar stateVar =<< ST.execStateT cb =<< takeMVar stateVar
+    bindPassiveMotion stateVar = (passiveMotionCallback $=) . Just $ \pos -> do
+        let Position posX posY = pos
+            cb = setMousePos (posX,posY) >> onMouseMove
+        state <- takeMVar stateVar
+        putMVar stateVar =<< ST.execStateT cb =<< takeMVar stateVar
      
     -- bind active motion callback for mouse polling when buttons are down
     bindActiveMotion :: MVar (SimState a) -> IO ()
-    bindActiveMotion stateVar = do
-        (motionCallback $=) . Just $ \pos -> do
-            let Position posX posY = pos
-                cb = setMousePos (posX,posY) >> onMouseMove
-            putMVar stateVar =<< ST.execStateT cb =<< takeMVar stateVar
+    bindActiveMotion stateVar = (motionCallback $=) . Just $ \pos -> do
+        let Position posX posY = pos
+            cb = setMousePos (posX,posY) >> onMouseMove
+        putMVar stateVar =<< ST.execStateT cb =<< takeMVar stateVar
         
     -- binding for keyboard and mouse button events
-    bindKeyboardMouseCallback :: MVar (SimState a) -> IO ()
-    bindKeyboardMouseCallback stateVar = do
-        (keyboardMouseCallback $=) . Just $
-            \key keyState modifiers pos -> do
-                when (key == Char '\27') leaveMainLoop -- esc
-                -- update key set
-                let cb = (setKeySet . f =<< getKeySet) >> ev
-                    f = case keyState of
-                        Down -> Set.insert key
-                        Up -> Set.delete key
-                    ev = case (key,keyState) of
-                        (MouseButton _,Down) -> onMouseDown
-                        (MouseButton _,Up) -> onMouseUp
-                        (_,Down) -> onKeyDown key
-                        (_,Up) -> onKeyUp key
-                -- run user callback along with key set housekeeping
-                putMVar stateVar =<< ST.execStateT cb =<< takeMVar stateVar
-
+    bindKeyboardMouse :: MVar (SimState a) -> IO ()
+    bindKeyboardMouse stateVar = (keyboardMouseCallback $=) . Just $
+        \key keyState modifiers pos -> do
+            when (key == Char '\27') leaveMainLoop -- esc
+            -- update key set
+            let cb = (setKeySet . f =<< getKeySet) >> ev
+                f = case keyState of
+                    Down -> Set.insert key
+                    Up -> Set.delete key
+                ev = case (key,keyState) of
+                    (MouseButton _,Down) -> onMouseDown
+                    (MouseButton _,Up) -> onMouseUp
+                    (_,Down) -> onKeyDown key
+                    (_,Up) -> onKeyUp key
+            -- run user callback along with key set housekeeping
+            putMVar stateVar =<< ST.execStateT cb =<< takeMVar stateVar
+    
+    -- run display callback with helper stuff
+    bindDisplay :: MVar (SimState a) -> IO ()
+    bindDisplay stateVar = (displayCallback $=) $ do
+        let
+            cb :: Simulation a => ST.StateT (SimState a) IO ()
+            cb = do
+                bg <- getWindowBG
+                liftIO $ do
+                    clearColor $= bg
+                    clear [ ColorBuffer, DepthBuffer ]
+                
+                projection
+                cam <- getCamera
+                liftIO $ do
+                    multMatrix =<< toGLmat (cameraMatrix cam)
+                    matrixMode $= Modelview 0
+                    loadIdentity
+                    rotateM (-90) $ vector3f 1 0 0 -- z-up
+                
+                display
+                liftIO $ do
+                    flush
+                    swapBuffers
+                    postRedisplay Nothing
+         
+        putMVar stateVar =<< ST.execStateT cb =<< takeMVar stateVar
+        return ()
+        
     startNavigation :: MVar (SimState a) -> IO ThreadId
     startNavigation stateVar = forkIO $ forever $ runAtFPS 50 $ do
         let cb = navigator >> (setPrevMousePos =<< getMousePos)
         putMVar stateVar =<< ST.execStateT cb =<< takeMVar stateVar
- 
+    
 {-
         -- navigation gets its own thread with regular atomic updates
         
-        -- run display callback with helper stuff
-        displayCallback $= do
-            sim <- atomically $ takeTMVar simVar
-            clearColor $= (winBG $ window sim)
-            clear [ ColorBuffer, DepthBuffer ]
-            
-            camera <- atomically $ readTMVar cameraVar
-            Size w h <- get windowSize
-            projection sim camera (w,h)
-            
-            multMatrix =<< toGLmat (cameraMatrix camera)
-            matrixMode $= Modelview 0
-            
-            loadIdentity
-            rotateM (-90) $ vector3f 1 0 0 -- z-up
-            
-            sim' <- display sim
-            atomically $ putTMVar simVar sim'
-            
-            flush
-            swapBuffers
-            postRedisplay Nothing
         
         mainLoop
     -}
