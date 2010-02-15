@@ -2,10 +2,20 @@
 {-# LANGUAGE TypeSynonymInstances, FlexibleContexts, RankNTypes #-}
 -- easily extensible GLUT simulation application with reasonable defaults
 module Graphics.UI.Simulation3D.Base (
-    Simulation(begin,display,runSimulation),
+    Simulation(
+        begin, display, runSimulationState, navigator, projection,
+        onReshape, onMouseMove, onMouseDown, onMouseUp, onKeyDown, onKeyUp
+    ),
     SimWindow(..), Camera(..), SimState(..), InputState(..),
-    HookIO, NavigateHook, KeySet,
-    getCamera, getInputState, getKeySet, getMousePos, getPrevMousePos
+    HookIO, KeySet,
+    getSimulation, setSimulation,
+    getCamera, setCamera,
+    getInputState, setInputState,
+    getKeySet, setKeySet,
+    getMousePos, setMousePos,
+    getPrevMousePos, setPrevMousePos,
+    getWindow, setWindow,
+    getWindowSize, setWindowSize
 ) where
 
 import Graphics.UI.GLUT hiding (Matrix(..),newMatrix,rotate,translate)
@@ -21,7 +31,7 @@ import Control.Applicative ((<$>))
 import Data.Maybe (isJust,fromJust)
 
 import qualified Data.Set as Set
-import Control.Concurrent (forkIO,threadDelay)
+import Control.Concurrent (ThreadId,forkIO,threadDelay)
 import Data.Time.Clock (getCurrentTime, diffUTCTime)
 
 import Numeric.LinearAlgebra.Transform
@@ -45,7 +55,6 @@ data Simulation a => SimState a = SimState {
     simulation :: a,
     simCamera :: Camera,
     simWindow :: SimWindow,
-    simNavigator :: NavigateHook a,
     simModes :: [DisplayMode],
     simInputState :: InputState,
     simFPS :: Double
@@ -63,7 +72,6 @@ type SimGet a b = (ST.MonadState (SimState a) m, Functor m) => m b
 type SimSet a b = (ST.MonadState (SimState a) m, Functor m) => b -> m ()
 
 type HookIO a b = ST.StateT (SimState a) IO b
-type NavigateHook a = ST.State (SimState a) Camera
 
 class Simulation a where
     display :: HookIO a ()
@@ -71,6 +79,9 @@ class Simulation a where
     
     begin :: HookIO a ()
     begin = return ()
+    
+    navigator :: HookIO a Camera
+    navigator = getCamera
     
     projection :: HookIO a ()
     projection = do
@@ -104,8 +115,8 @@ class Simulation a where
     onKeyUp :: Key -> HookIO a ()
     onKeyUp _ = return ()
     
-    runSimulation :: SimState a -> IO ()
-    runSimulation state = do
+    runSimulationState :: SimState a -> IO ()
+    runSimulationState state = do
         initWindow state -- initialize the window
         initDisplay state -- and the display
         state' <- ST.execStateT begin state -- run the user's begin hook
@@ -247,19 +258,16 @@ class Simulation a where
                         (MouseButton _,Up) -> onMouseUp
                         (_,Down) -> onKeyDown key
                         (_,Up) -> onKeyUp key
-                
-                -- run user callback
+                -- run user callback along with key set housekeeping
                 putMVar stateVar =<< ST.execStateT cb =<< takeMVar stateVar
 
+    startNavigation :: MVar (SimState a) -> IO ThreadId
+    startNavigation stateVar = forkIO $ forever $ runAtFPS 50 $ do
+        let cb = navigator >> (setPrevMousePos =<< getMousePos)
+        putMVar stateVar =<< ST.execStateT cb =<< takeMVar stateVar
+ 
 {-
-        -- 
-        return ()
         -- navigation gets its own thread with regular atomic updates
-        forkIO $ forever $ runAtFPS 50 $ atomically $ do
-            sim <- readTMVar simVar
-            input <- readTMVar inputVar
-            cameraVar $$~ navigate sim input
-            inputVar $$~ \i -> i { prevMousePos = mousePos input }
         
         -- run display callback with helper stuff
         displayCallback $= do

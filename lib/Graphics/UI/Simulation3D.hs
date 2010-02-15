@@ -33,7 +33,6 @@ defaultState sim = SimState {
         simWinPos = (0,0),
         simWinBG = color4cf 0.3 0.3 0.3 1.0
     },
-    simNavigator = wasdNav $ WASD { rSpeed = 0.05, tSpeed = 0.05 },
     simModes = [ DoubleBuffered, RGBMode, WithDepthBuffer ],
     simInputState = InputState {
         inputKeySet = Set.empty,
@@ -42,3 +41,6 @@ defaultState sim = SimState {
     },
     simFPS = 0.0
 }
+
+runSimulation :: Simulation a => a -> IO ()
+runSimulation = runSimulationState . defaultState 

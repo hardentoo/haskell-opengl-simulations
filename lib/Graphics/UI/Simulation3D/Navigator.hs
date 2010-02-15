@@ -13,11 +13,11 @@ data WASD = WASD {
     rSpeed, tSpeed :: Double
 }
 
-wasdNav :: Simulation a => WASD -> NavigateHook a
+wasdNav :: Simulation a => WASD -> HookIO a ()
 wasdNav params = do
     cam <- getCamera
     inputState <- getInputState
-    return $ wasdNav' params cam inputState
+    setCamera $ wasdNav' params cam inputState
 
 wasdNav' :: WASD -> Camera -> InputState -> Camera
 wasdNav' params cam inputState = cam' where
