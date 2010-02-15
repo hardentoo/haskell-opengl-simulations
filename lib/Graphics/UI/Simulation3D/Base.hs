@@ -220,23 +220,16 @@ class Simulation a where
                 bindKeyboardMouse,
                 bindDisplay
             ]
-        
+        startNavigation stateVar
         actionOnWindowClose $= MainLoopReturns -- ghci stays running
     
     -- callback to set projection matrix and update window state
     bindReshape :: MVar (SimState a) -> IO ()
     bindReshape stateVar = (reshapeCallback $=) . Just $ \size@(Size w h) -> do
-        -- get state and update window size
-        let uSize s = s { simWindow = (simWindow s) { simWinSize = (w,h) } }
-        state <- uSize <$> takeMVar stateVar
-        -- update viewport and set new projection
         viewport $= (Position 0 0, size)
-        
-        ST.execStateT projection state
-        
         matrixMode $= Modelview 0
-        -- call user's reshape callback
-        putMVar stateVar =<< ST.execStateT onReshape state
+        let cb = setWindowSize (w,h) >> projection >> onReshape
+        putMVar stateVar =<< ST.execStateT cb =<< takeMVar stateVar
     
     -- bind passive motion callback for mouse movement polling
     bindPassiveMotion :: MVar (SimState a) -> IO ()
