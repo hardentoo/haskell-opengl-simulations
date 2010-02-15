@@ -25,7 +25,8 @@ defaultState sim = SimState {
         cameraFOV = 60,
         cameraNear = 0.1,
         cameraFar = 100000,
-        cameraMatrix = ident 4
+        cameraRotation = ident 4,
+        cameraPos = 3 |> [0,0,0]
     },
     simWindow = SimWindow {
         simWinTitle = "Simulation",

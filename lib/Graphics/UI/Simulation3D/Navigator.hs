@@ -8,34 +8,35 @@ import Numeric.LinearAlgebra
 import Numeric.LinearAlgebra.Transform
 import Graphics.UI.GLUT hiding (Matrix,rotate,translate)
 import qualified Data.Set as Set
+import Control.Arrow ((&&&))
 
 data WASD = WASD {
     rSpeed, tSpeed :: Double
 }
 
-wasd :: Simulation a => WASD -> HookIO a Camera
+wasd :: Simulation a => WASD -> HookIO a ()
 wasd params = do
     cam <- getCamera
     inputState <- getInputState
-    return $ wasd' params cam inputState
+    setCamera $ wasd' params cam inputState
 
 wasd' :: WASD -> Camera -> InputState -> Camera
 wasd' params cam inputState = cam' where
-    cam' = case keys of
-        [] -> cam
-        _ -> cam { cameraMatrix = rMat <> tMat <> (cameraMatrix cam) }
+    cam' = if (SpecialKey KeyF5) `elem` keys
+        then cam { cameraPos = 3 |> [0,0,0], cameraRotation = ident 4 }
+        else cam { cameraPos = pos', cameraRotation = rot' }
+    (pos,rot) = cameraPos &&& cameraRotation $ cam
     
-    rMat, tMat :: Matrix Double
-    rMat = foldl1 (+) $ map rKey keys
-    tMat = translation (sum $ map tKey keys)
+    pos' = foldl (+) pos $ map tKey keys
+    rot' = foldl (<>) rot $ map rKey keys
     
     keys = Set.elems $ inputKeySet inputState
-    pos = inputMousePos inputState
+    mpos = inputMousePos inputState
     prevPos = inputPrevMousePos inputState
     
     dt = tSpeed params
-    drx = (rSpeed params) * (fromIntegral $ fst pos - fst prevPos)
-    dry = -(rSpeed params) * (fromIntegral $ snd pos - snd prevPos)
+    drx = (rSpeed params) * (fromIntegral $ fst mpos - fst prevPos)
+    dry = -(rSpeed params) * (fromIntegral $ snd mpos - snd prevPos)
     
     tKey :: Key -> Vector Double
     tKey (Char 'w') = 3 |> [0,0,dt] -- forward

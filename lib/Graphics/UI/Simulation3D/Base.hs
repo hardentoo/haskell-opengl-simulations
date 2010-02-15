@@ -49,7 +49,8 @@ data Camera = Camera {
     cameraFOV :: GLdouble,
     cameraNear :: GLdouble,
     cameraFar :: GLdouble,
-    cameraMatrix :: Matrix Double
+    cameraRotation :: Matrix Double,
+    cameraPos :: Vector Double
 } deriving (Eq,Show)
 
 data Simulation a => SimState a = SimState {
@@ -81,8 +82,8 @@ class Simulation a where
     begin :: HookIO a ()
     begin = return ()
     
-    navigator :: HookIO a Camera
-    navigator = getCamera
+    navigator :: HookIO a ()
+    navigator = return ()
     
     projection :: HookIO a ()
     projection = do
@@ -277,10 +278,12 @@ class Simulation a where
                 projection
                 cam <- getCamera
                 liftIO $ do
-                    multMatrix =<< toGLmat (cameraMatrix cam)
                     matrixMode $= Modelview 0
                     loadIdentity
                     rotateM (-90) $ vector3f 1 0 0 -- z-up
+                    
+                    (multMatrix =<<) . toGLmat $
+                        translate (cameraPos cam) (cameraRotation cam)
                 
                 display
                 liftIO $ do
@@ -290,8 +293,8 @@ class Simulation a where
          
         putMVar stateVar =<< ST.execStateT cb =<< takeMVar stateVar
         return ()
-        
+    
     startNavigation :: MVar (SimState a) -> IO ThreadId
     startNavigation stateVar = forkIO $ forever $ runAtFPS 50 $ do
-        let cb = (setCamera =<< navigator) >> (setPrevMousePos =<< getMousePos)
+        let cb = navigator >> (setPrevMousePos =<< getMousePos)
         putMVar stateVar =<< ST.execStateT cb =<< takeMVar stateVar
