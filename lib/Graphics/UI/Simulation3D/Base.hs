@@ -1,4 +1,5 @@
-{-# LANGUAGE FlexibleInstances, MultiParamTypeClasses, TypeSynonymInstances #-}
+{-# LANGUAGE FlexibleInstances, MultiParamTypeClasses #-}
+{-# LANGUAGE TypeSynonymInstances, FlexibleContexts, RankNTypes #-}
 -- easily extensible GLUT simulation application with reasonable defaults
 module Graphics.UI.Simulation3D.Base (
     Simulation(begin,display,runSimulation),
@@ -13,6 +14,7 @@ import Graphics.UI.Simulation3D.Util
 import Control.Monad (when,forever)
 import Control.Monad.Trans (liftIO)
 import qualified Control.Monad.State as ST
+import Control.Concurrent.MVar
 
 import Control.Arrow (first,(***))
 import Control.Applicative ((<$>))
@@ -57,23 +59,7 @@ data InputState = InputState {
 
 type KeySet = Set.Set Key
 
-getSimulation :: Simulation a => ST.State (SimState a) a
-getSimulation = simulation <$> ST.get
-
-getCamera :: Simulation a => ST.State (SimState a) Camera
-getCamera = simCamera <$> ST.get
-
-getInputState :: Simulation a => ST.State (SimState a) InputState
-getInputState = simInputState <$> ST.get
-
-getKeySet :: Simulation a => ST.State (SimState a) KeySet
-getKeySet = inputKeySet <$> getInputState
-
-getMousePos :: Simulation a => ST.State (SimState a) (GLint,GLint)
-getMousePos = inputMousePos <$> getInputState
-
-getPrevMousePos :: Simulation a => ST.State (SimState a) (GLint,GLint)
-getPrevMousePos = inputPrevMousePos <$> getInputState
+type SimGet a b = (ST.MonadState (SimState a) m, Functor m) => m b
 
 type HookIO a b = ST.StateT (SimState a) IO b
 type HookT a m = ST.StateT (SimState a) m a
@@ -84,18 +70,64 @@ class Simulation a where
     display :: HookIO a ()
     display = return ()
     
-    begin :: HookIO a a
-    begin = simulation <$> ST.get
+    begin :: HookIO a ()
+    begin = return ()
+    
+    projection :: HookIO a ()
+    projection = do
+        (w,h) <- getSize
+        cam <- getCamera
+        let
+            fov = cameraFOV cam
+            near = cameraNear cam
+            far = cameraFar cam
+            aspect = fromIntegral w / fromIntegral h
+        liftIO $ do
+            matrixMode $= Projection
+            loadIdentity
+            perspective fov aspect near far
+     
+    onReshape :: HookIO a ()
+    onReshape = return ()
     
     runSimulation :: SimState a -> IO ()
     runSimulation state = do
-        runInitials state
+        initWindow state -- initialize the window
+        initDisplay state -- and the display
+        state' <- ST.execStateT begin state -- run the user's begin hook
+        bindCallbacks state'
+        mainLoop
     
-    -- End of exported members. It's all helpers from here down
+    -- getters
+    getSimulation :: SimGet a a
+    getSimulation = simulation <$> ST.get
+
+    getCamera :: SimGet a Camera
+    getCamera = simCamera <$> ST.get
+
+    getInputState :: SimGet a InputState
+    getInputState = simInputState <$> ST.get
+
+    getKeySet :: SimGet a KeySet
+    getKeySet = inputKeySet <$> getInputState
+
+    getMousePos :: SimGet a (GLint,GLint)
+    getMousePos = inputMousePos <$> getInputState
+
+    getPrevMousePos :: SimGet a (GLint,GLint)
+    getPrevMousePos = inputPrevMousePos <$> getInputState
+
+    getWindow :: SimGet a SimWindow
+    getWindow = simWindow <$> ST.get
     
+    getSize :: SimGet a (GLsizei,GLsizei)
+    getSize = simWinSize <$> getWindow
     
-    runInitials :: SimState a -> IO ()
-    runInitials state = do
+    -- Exported functions end here. Helpers below.
+    
+    initWindow :: SimState a -> IO ()
+    initWindow state = do
+        -- initialize the window
         (_,argv) <- getArgsAndInitialize
         initialDisplayMode $= simModes state
         let win = simWindow state
@@ -103,27 +135,44 @@ class Simulation a where
         initialWindowPosition $= (uncurry Position $ simWinPos win)
         createWindow $ simWinTitle win
         return ()
-
+    
+    initDisplay :: SimState a -> IO ()        
+    initDisplay state = do
+        -- initialize the display with some reasonable modes
+        blend $= Enabled
+        blendFunc $= (SrcAlpha, OneMinusSrcAlpha)
+        shadeModel $= Flat
+        depthMask $= Enabled
+        depthFunc $= Just Lequal
+        lighting $= Disabled
+        texture Texture2D $= Enabled
+    
+    bindCallbacks :: SimState a -> IO ()
+    bindCallbacks state = do
+        stateVar <- newMVar state
+        bindReshape stateVar
+        
+        actionOnWindowClose $= MainLoopReturns -- ghci stays running
+    
+    bindReshape :: MVar (SimState a) -> IO ()
+    bindReshape stateVar = do
+        (reshapeCallback $=) . Just $ \size@(Size w h) -> do
+            -- get state and update window size
+            let nSize s = s { simWindow = (simWindow s) { simWinSize = (w,h) } }
+            state <- nSize <$> takeMVar stateVar
+            -- update viewport and set new projection
+            viewport $= (Position 0 0, size)
+            
+            ST.execStateT projection state
+            
+            matrixMode $= Modelview 0
+            -- call user's reshape callback
+            putMVar stateVar =<< ST.execStateT onReshape state
+    
 {-
         -- 
         return ()
-        initDisplay sim'
-        sim <- initSimulation sim'
         
-        simVar <- atomically $ newTMVar sim
-        inputVar <- atomically $ newTMVar $ InputState {
-            keySet = Set.empty,
-            mousePos = (0,0),
-            prevMousePos = (0,0)
-        }
-        
-        cameraVar <- atomically $ newTMVar (initCamera sim)
-        
-        (reshapeCallback $=) . Just $ \size -> do
-            camera <- atomically $ readTMVar cameraVar
-            reshape sim camera size
-        
-        actionOnWindowClose $= MainLoopReturns -- ghci stays running
         
         -- bind passive motion callback for mouse movement polling
         (passiveMotionCallback $=) . Just $ \pos -> do
@@ -188,38 +237,6 @@ class Simulation a where
         
         mainLoop
     -}
-    
-    initDisplay :: a -> IO ()
-    initDisplay sim = do
-        blend $= Enabled
-        blendFunc $= (SrcAlpha, OneMinusSrcAlpha)
-        shadeModel $= Flat
-        depthMask $= Enabled
-        depthFunc $= Just Lequal
-        pointSmooth $= Enabled
-        lineSmooth $= Enabled
-        lighting $= Disabled
-        texture Texture2D $= Enabled
-    
-    initSimulation :: a -> IO a
-    initSimulation = return
-    
-    projection :: Integral b => a -> Camera -> (b,b) -> IO ()
-    projection sim cam (w,h) = do
-        matrixMode $= Projection
-        loadIdentity
-        let
-            fov = cameraFOV cam
-            near = cameraNear cam
-            far = cameraFar cam
-            aspect = fromIntegral w / fromIntegral h
-        perspective fov aspect near far
-    
-    reshape :: a -> Camera -> ReshapeCallback
-    reshape sim cam size@(Size w h) = do
-        viewport $= (Position 0 0, size)
-        projection sim cam (w,h)
-        matrixMode $= Modelview 0
     
     keyboard :: a -> Key -> KeyState -> Modifiers -> Position -> IO a
     keyboard sim key keyState modifiers pos = return sim
