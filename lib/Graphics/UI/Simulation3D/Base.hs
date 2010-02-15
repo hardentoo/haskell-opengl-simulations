@@ -4,8 +4,8 @@
 module Graphics.UI.Simulation3D.Base (
     Simulation(begin,display,runSimulation),
     SimWindow(..), Camera(..), SimState(..), InputState(..),
-    HookIO, HookT, Hook, NavigateHook,
-    KeySet, getCamera, getInputState, getKeySet, getMousePos, getPrevMousePos
+    HookIO, NavigateHook, KeySet,
+    getCamera, getInputState, getKeySet, getMousePos, getPrevMousePos
 ) where
 
 import Graphics.UI.GLUT hiding (Matrix(..),newMatrix,rotate,translate)
@@ -60,10 +60,9 @@ data InputState = InputState {
 type KeySet = Set.Set Key
 
 type SimGet a b = (ST.MonadState (SimState a) m, Functor m) => m b
+type SimSet a b = (ST.MonadState (SimState a) m, Functor m) => b -> m ()
 
 type HookIO a b = ST.StateT (SimState a) IO b
-type HookT a m = ST.StateT (SimState a) m a
-type Hook a = ST.State (SimState a) a
 type NavigateHook a = ST.State (SimState a) Camera
 
 class Simulation a where
@@ -75,7 +74,7 @@ class Simulation a where
     
     projection :: HookIO a ()
     projection = do
-        (w,h) <- getSize
+        (w,h) <- getWindowSize
         cam <- getCamera
         let
             fov = cameraFOV cam
@@ -90,6 +89,9 @@ class Simulation a where
     onReshape :: HookIO a ()
     onReshape = return ()
     
+    onMouseMove :: HookIO a ()
+    onMouseMove = return ()
+    
     runSimulation :: SimState a -> IO ()
     runSimulation state = do
         initWindow state -- initialize the window
@@ -98,30 +100,60 @@ class Simulation a where
         bindCallbacks state'
         mainLoop
     
-    -- getters
+    -- Getters and setters for convenience.
+    -- Sometime later these will have a bit nicer interface.
+    
     getSimulation :: SimGet a a
     getSimulation = simulation <$> ST.get
-
+    
+    setSimulation :: SimSet a a
+    setSimulation sim = ST.modify $ \s -> s { simulation = sim }
+    
     getCamera :: SimGet a Camera
     getCamera = simCamera <$> ST.get
-
+    
+    setCamera :: SimSet a Camera
+    setCamera cam = ST.modify $ \s -> s { simCamera = cam }
+    
     getInputState :: SimGet a InputState
     getInputState = simInputState <$> ST.get
-
+    
+    setInputState :: SimSet a InputState
+    setInputState is = ST.modify $ \s -> s { simInputState = is }
+    
     getKeySet :: SimGet a KeySet
     getKeySet = inputKeySet <$> getInputState
-
+    
+    setKeySet :: SimSet a KeySet
+    setKeySet set = setInputState . f =<< getInputState
+        where f s = s { inputKeySet = set }
+    
     getMousePos :: SimGet a (GLint,GLint)
     getMousePos = inputMousePos <$> getInputState
-
+    
+    setMousePos :: SimSet a (GLint,GLint)
+    setMousePos pos = setInputState . f =<< getInputState
+        where f s = s { inputMousePos = pos }
+    
     getPrevMousePos :: SimGet a (GLint,GLint)
     getPrevMousePos = inputPrevMousePos <$> getInputState
-
+    
+    setPrevMousePos :: SimSet a (GLint,GLint)
+    setPrevMousePos pos = setInputState . f =<< getInputState
+        where f s = s { inputPrevMousePos = pos }
+    
     getWindow :: SimGet a SimWindow
     getWindow = simWindow <$> ST.get
     
-    getSize :: SimGet a (GLsizei,GLsizei)
-    getSize = simWinSize <$> getWindow
+    setWindow :: SimSet a SimWindow
+    setWindow win = ST.modify $ \s -> s { simWindow = win }
+    
+    getWindowSize :: SimGet a (GLsizei,GLsizei)
+    getWindowSize = simWinSize <$> getWindow
+    
+    setWindowSize :: SimSet a (GLsizei,GLsizei)
+    setWindowSize size = setWindow . f =<< getWindow
+        where f s = s { simWinSize = size }
     
     -- Exported functions end here. Helpers below.
     
@@ -129,8 +161,8 @@ class Simulation a where
     initWindow state = do
         -- initialize the window
         (_,argv) <- getArgsAndInitialize
-        initialDisplayMode $= simModes state
         let win = simWindow state
+        initialDisplayMode $= simModes state
         initialWindowSize $= (uncurry Size $ simWinSize win)
         initialWindowPosition $= (uncurry Position $ simWinPos win)
         createWindow $ simWinTitle win
@@ -154,12 +186,13 @@ class Simulation a where
         
         actionOnWindowClose $= MainLoopReturns -- ghci stays running
     
+    -- callback to set projection matrix and update window state
     bindReshape :: MVar (SimState a) -> IO ()
     bindReshape stateVar = do
         (reshapeCallback $=) . Just $ \size@(Size w h) -> do
             -- get state and update window size
-            let nSize s = s { simWindow = (simWindow s) { simWinSize = (w,h) } }
-            state <- nSize <$> takeMVar stateVar
+            let uSize s = s { simWindow = (simWindow s) { simWinSize = (w,h) } }
+            state <- uSize <$> takeMVar stateVar
             -- update viewport and set new projection
             viewport $= (Position 0 0, size)
             
@@ -169,26 +202,27 @@ class Simulation a where
             -- call user's reshape callback
             putMVar stateVar =<< ST.execStateT onReshape state
     
+    -- bind passive motion callback for mouse movement polling
+    bindPassiveMotion :: MVar (SimState a) -> IO ()
+    bindPassiveMotion stateVar = do
+        (passiveMotionCallback $=) . Just $ \pos -> do
+            let Position posX posY = pos
+                cb = setMousePos (posX,posY) >> onMouseMove
+            state <- takeMVar stateVar
+            putMVar stateVar =<< ST.execStateT cb =<< takeMVar stateVar
+     
+    -- bind active motion callback for mouse polling when buttons are down
+    bindActiveMotion :: MVar (SimState a) -> IO ()
+    bindActiveMotion stateVar = do
+        (motionCallback $=) . Just $ \pos -> do
+            let Position posX posY = pos
+                cb = setMousePos (posX,posY) >> onMouseMove
+            putMVar stateVar =<< ST.execStateT cb =<< takeMVar stateVar
+        
 {-
         -- 
         return ()
         
-        
-        -- bind passive motion callback for mouse movement polling
-        (passiveMotionCallback $=) . Just $ \pos -> do
-            let Position posX posY = pos
-            atomically $ inputVar $$~ \i -> i { mousePos = (posX,posY) }
-            sim <- atomically $ takeTMVar simVar
-            sim' <- mouseMove sim pos
-            atomically $ putTMVar simVar sim'
-        
-        -- more mouse polling (when buttons are down)
-        (motionCallback $=) . Just $ \pos -> do
-            let Position posX posY = pos
-            atomically $ inputVar $$~ \i -> i { mousePos = (posX,posY) }
-            sim <- atomically $ takeTMVar simVar
-            sim' <- mouseMove sim pos
-            atomically $ putTMVar simVar sim'
         
         -- bind keyboard callback
         (keyboardMouseCallback $=) . Just $
