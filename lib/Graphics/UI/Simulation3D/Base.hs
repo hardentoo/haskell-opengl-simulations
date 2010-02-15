@@ -10,6 +10,7 @@ module Graphics.UI.Simulation3D.Base (
     HookIO, KeySet,
     getSimulation, setSimulation,
     getCamera, setCamera,
+    getCameraPos, setCameraPos,
     getInputState, setInputState,
     getKeySet, setKeySet,
     getMousePos, setMousePos,
@@ -139,6 +140,13 @@ class Simulation a where
     
     setCamera :: SimSet a Camera
     setCamera cam = ST.modify $ \s -> s { simCamera = cam }
+    
+    getCameraPos :: SimGet a (Vector Double)
+    getCameraPos = cameraPos <$> getCamera
+    
+    setCameraPos :: SimSet a (Vector Double)
+    setCameraPos pos = setCamera . f =<< getCamera
+        where f s = s { cameraPos = pos }
     
     getInputState :: SimGet a InputState
     getInputState = simInputState <$> ST.get
