@@ -92,6 +92,18 @@ class Simulation a where
     onMouseMove :: HookIO a ()
     onMouseMove = return ()
     
+    onMouseDown :: HookIO a ()
+    onMouseDown = return ()
+    
+    onMouseUp :: HookIO a ()
+    onMouseUp = return ()
+    
+    onKeyDown :: Key -> HookIO a ()
+    onKeyDown _ = return ()
+    
+    onKeyUp :: Key -> HookIO a ()
+    onKeyUp _ = return ()
+    
     runSimulation :: SimState a -> IO ()
     runSimulation state = do
         initWindow state -- initialize the window
@@ -219,26 +231,29 @@ class Simulation a where
                 cb = setMousePos (posX,posY) >> onMouseMove
             putMVar stateVar =<< ST.execStateT cb =<< takeMVar stateVar
         
-{-
-        -- 
-        return ()
-        
-        
-        -- bind keyboard callback
+    -- binding for keyboard and mouse button events
+    bindKeyboardMouseCallback :: MVar (SimState a) -> IO ()
+    bindKeyboardMouseCallback stateVar = do
         (keyboardMouseCallback $=) . Just $
             \key keyState modifiers pos -> do
                 when (key == Char '\27') leaveMainLoop -- esc
                 -- update key set
-                atomically $ inputVar $$~ \i -> i {
-                    keySet = ($ keySet i) $ case keyState of
+                let cb = (setKeySet . f =<< getKeySet) >> ev
+                    f = case keyState of
                         Down -> Set.insert key
                         Up -> Set.delete key
-                }
+                    ev = case (key,keyState) of
+                        (MouseButton _,Down) -> onMouseDown
+                        (MouseButton _,Up) -> onMouseUp
+                        (_,Down) -> onKeyDown key
+                        (_,Up) -> onKeyUp key
+                
                 -- run user callback
-                sim <- atomically $ takeTMVar simVar
-                sim' <- keyboard sim key keyState modifiers pos
-                atomically $ putTMVar simVar sim'
-        
+                putMVar stateVar =<< ST.execStateT cb =<< takeMVar stateVar
+
+{-
+        -- 
+        return ()
         -- navigation gets its own thread with regular atomic updates
         forkIO $ forever $ runAtFPS 50 $ atomically $ do
             sim <- readTMVar simVar
