@@ -236,7 +236,6 @@ class Simulation a where
     bindPassiveMotion stateVar = (passiveMotionCallback $=) . Just $ \pos -> do
         let Position posX posY = pos
             cb = setMousePos (posX,posY) >> onMouseMove
-        state <- takeMVar stateVar
         putMVar stateVar =<< ST.execStateT cb =<< takeMVar stateVar
      
     -- bind active motion callback for mouse polling when buttons are down
@@ -245,7 +244,7 @@ class Simulation a where
         let Position posX posY = pos
             cb = setMousePos (posX,posY) >> onMouseMove
         putMVar stateVar =<< ST.execStateT cb =<< takeMVar stateVar
-        
+    
     -- binding for keyboard and mouse button events
     bindKeyboardMouse :: MVar (SimState a) -> IO ()
     bindKeyboardMouse stateVar = (keyboardMouseCallback $=) . Just $
