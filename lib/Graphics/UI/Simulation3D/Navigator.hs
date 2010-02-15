@@ -23,11 +23,11 @@ wasd params = do
 wasd' :: WASD -> Camera -> InputState -> Camera
 wasd' params cam inputState = cam' where
     cam' = if (SpecialKey KeyF5) `elem` keys
-        then cam { cameraPos = 3 |> [0,0,0], cameraRotation = ident 4 }
+        then cam { cameraPos = 4 |> [0,0,0,1], cameraRotation = ident 4 }
         else cam { cameraPos = pos', cameraRotation = rot' }
     (pos,rot) = cameraPos &&& cameraRotation $ cam
     
-    pos' = foldl (+) pos $ map tKey keys
+    pos' = pos + ((foldl (+) (4 |> [0,0,0,1]) $ map tKey keys) <> rot)
     rot' = foldl (<>) rot $ map rKey keys
     
     keys = Set.elems $ inputKeySet inputState
@@ -39,16 +39,20 @@ wasd' params cam inputState = cam' where
     dry = -(rSpeed params) * (fromIntegral $ snd mpos - snd prevPos)
     
     tKey :: Key -> Vector Double
-    tKey (Char 'w') = 3 |> [0,0,dt] -- forward
-    tKey (Char 's') = 3 |> [0,0,-dt] -- back
-    tKey (Char 'a') = 3 |> [dt,0,0] -- strafe left
-    tKey (Char 'd') = 3 |> [-dt,0,0] -- strafe right
-    tKey (Char 'q') = 3 |> [0,-dt,0] -- up
-    tKey (Char 'z') = 3 |> [0,dt,0] -- down
-    tKey _ = 3 |> [0,0,0]
+    tKey (Char 'w') = 4 |> [0,0,dt,1] -- forward
+    tKey (Char 's') = 4 |> [0,0,-dt,1] -- back
+    tKey (Char 'a') = 4 |> [dt,0,0,1] -- strafe left
+    tKey (Char 'd') = 4 |> [-dt,0,0,1] -- strafe right
+    tKey (Char 'q') = 4 |> [0,-dt,0,1] -- up
+    tKey (Char 'z') = 4 |> [0,dt,0,1] -- down
+    tKey _ = 4 |> [0,0,0,1]
     
     rKey :: Key -> Matrix Double
-    rKey (MouseButton LeftButton) = rotation (AxisY (-drx))
-    --    rotate (AxisX dry) $ rotation (AxisY (-drx))
-    rKey (MouseButton RightButton) = rotation (AxisZ drx)
+    rKey (MouseButton LeftButton) =
+        rotate (AxisZ (-drx)) $ rotate (AxisY (-ay)) $ rotation (AxisX ax)
+        where
+            (ax,ay) = (dry*) . cos &&& (dry*) . sin $ atan2 x' y'
+            (x':y':_) = toList pos
+    rKey (MouseButton RightButton) = rotation (AxisAngle drx pos3)
+        where pos3 = (3 |>) $ toList $ (4 |> [0,0,1,1]) <> rot
     rKey _ = ident 4

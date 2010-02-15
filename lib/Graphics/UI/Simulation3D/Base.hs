@@ -278,12 +278,12 @@ class Simulation a where
                 projection
                 cam <- getCamera
                 liftIO $ do
+                    let tMat = translation ((3 |>) $ toList $ cameraPos cam)
+                        rMat = cameraRotation cam
+                    (multMatrix =<<) . toGLmat $ rMat <> tMat
+                    
                     matrixMode $= Modelview 0
                     loadIdentity
-                    rotateM (-90) $ vector3f 1 0 0 -- z-up
-                    
-                    (multMatrix =<<) . toGLmat $
-                        translate (cameraPos cam) (cameraRotation cam)
                 
                 display
                 liftIO $ do
