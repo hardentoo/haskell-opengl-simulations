@@ -5,7 +5,7 @@ module Graphics.UI.Simulation3D (
     module Graphics.UI.Simulation3D.Navigator,
     module Numeric.LinearAlgebra,
     module Numeric.LinearAlgebra.Transform,
-    defaultState
+    defaultState, runSimulation,
 ) where
 
 import Graphics.UI.GLUT hiding (Matrix(..),newMatrix,rotate,translate)

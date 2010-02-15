@@ -303,16 +303,3 @@ class Simulation a where
     startNavigation stateVar = forkIO $ forever $ runAtFPS 50 $ do
         let cb = navigator >> (setPrevMousePos =<< getMousePos)
         putMVar stateVar =<< ST.execStateT cb =<< takeMVar stateVar
-    
-{-
-        -- navigation gets its own thread with regular atomic updates
-        
-        
-        mainLoop
-    -}
-    
-    keyboard :: a -> Key -> KeyState -> Modifiers -> Position -> IO a
-    keyboard sim key keyState modifiers pos = return sim
-    
-    mouseMove :: a -> Position -> IO a
-    mouseMove sim pos = return sim

@@ -1,6 +1,6 @@
 {-# LANGUAGE FlexibleInstances, MultiParamTypeClasses #-}
 module Graphics.UI.Simulation3D.Navigator (
-    wasdNav, WASD(..)
+    wasd, WASD(..)
 ) where
 
 import Graphics.UI.Simulation3D.Base
@@ -13,14 +13,14 @@ data WASD = WASD {
     rSpeed, tSpeed :: Double
 }
 
-wasdNav :: Simulation a => WASD -> HookIO a ()
-wasdNav params = do
+wasd :: Simulation a => WASD -> HookIO a Camera
+wasd params = do
     cam <- getCamera
     inputState <- getInputState
-    setCamera $ wasdNav' params cam inputState
+    return $ wasd' params cam inputState
 
-wasdNav' :: WASD -> Camera -> InputState -> Camera
-wasdNav' params cam inputState = cam' where
+wasd' :: WASD -> Camera -> InputState -> Camera
+wasd' params cam inputState = cam' where
     cam' = case keys of
         [] -> cam
         _ -> cam { cameraMatrix = (cameraMatrix cam) <> rMat <> tMat }
