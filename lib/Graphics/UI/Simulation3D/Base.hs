@@ -293,5 +293,5 @@ class Simulation a where
         
     startNavigation :: MVar (SimState a) -> IO ThreadId
     startNavigation stateVar = forkIO $ forever $ runAtFPS 50 $ do
-        let cb = navigator >> (setPrevMousePos =<< getMousePos)
+        let cb = (setCamera =<< navigator) >> (setPrevMousePos =<< getMousePos)
         putMVar stateVar =<< ST.execStateT cb =<< takeMVar stateVar
