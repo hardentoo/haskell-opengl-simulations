@@ -8,7 +8,7 @@ import Numeric.LinearAlgebra
 import Numeric.LinearAlgebra.Transform
 import Graphics.UI.GLUT hiding (Matrix,rotate,translate)
 import qualified Data.Set as Set
-import Control.Arrow ((&&&))
+import Control.Arrow (first,second,(&&&))
 
 data WASD = WASD {
     rSpeed, tSpeed :: Double
@@ -23,36 +23,36 @@ wasd params = do
 wasd' :: WASD -> Camera -> InputState -> Camera
 wasd' params cam inputState = cam' where
     cam' = if (SpecialKey KeyF5) `elem` keys
-        then cam { cameraPos = 4 |> [0,0,0,1], cameraRotation = ident 4 }
-        else cam { cameraPos = pos', cameraRotation = rot' }
-    (pos,rot) = cameraPos &&& cameraRotation $ cam
+        then cam { cameraMatrix = ident 4 }
+        else cam { cameraMatrix = mat' }
     
-    pos' = pos + ((foldl (+) (4 |> [0,0,0,1]) $ map tKey keys) <> rot)
-    rot' = foldl (<>) rot $ map rKey keys
+    mat = cameraMatrix cam
+    mat' = case keys of
+        [] -> mat
+        _ -> (foldl1 (<>) $ map rKey keys) <> tMat <> mat
+    tMat = translation (sum $ map tKey keys)
     
     keys = Set.elems $ inputKeySet inputState
     mpos = inputMousePos inputState
     prevPos = inputPrevMousePos inputState
     
     dt = tSpeed params
-    drx = (rSpeed params) * (fromIntegral $ fst mpos - fst prevPos)
+    drx = -(rSpeed params) * (fromIntegral $ fst mpos - fst prevPos)
     dry = -(rSpeed params) * (fromIntegral $ snd mpos - snd prevPos)
     
     tKey :: Key -> Vector Double
-    tKey (Char 'w') = 4 |> [0,0,dt,1] -- forward
-    tKey (Char 's') = 4 |> [0,0,-dt,1] -- back
-    tKey (Char 'a') = 4 |> [dt,0,0,1] -- strafe left
-    tKey (Char 'd') = 4 |> [-dt,0,0,1] -- strafe right
-    tKey (Char 'q') = 4 |> [0,-dt,0,1] -- up
-    tKey (Char 'z') = 4 |> [0,dt,0,1] -- down
-    tKey _ = 4 |> [0,0,0,1]
+    tKey (Char 'w') = 3 |> [0,0,dt] -- forward
+    tKey (Char 's') = 3 |> [0,0,-dt] -- back
+    tKey (Char 'a') = 3 |> [dt,0,0] -- strafe left
+    tKey (Char 'd') = 3 |> [-dt,0,0] -- strafe right
+    tKey (Char 'q') = 3 |> [0,-dt,0] -- up
+    tKey (Char 'z') = 3 |> [0,dt,0] -- down
+    tKey _ = 3 |> [0,0,0]
     
     rKey :: Key -> Matrix Double
-    rKey (MouseButton LeftButton) =
-        rotate (AxisZ (-drx)) $ rotate (AxisY (-ay)) $ rotation (AxisX ax)
+    rKey (MouseButton LeftButton) = r1 <> r2
         where
-            (ax,ay) = (dry*) . cos &&& (dry*) . sin $ atan2 x' y'
-            (x':y':_) = toList pos
-    rKey (MouseButton RightButton) = rotation (AxisAngle drx pos3)
-        where pos3 = (3 |>) $ toList $ (4 |> [0,0,1,1]) <> rot
+            r1 = rotation (AxisX dry)
+            r2 = rotation (AxisY drx)
+    rKey (MouseButton RightButton) = rotation (AxisZ drx)
     rKey _ = ident 4

@@ -54,6 +54,24 @@ hw2i:
 		lib/Graphics/UI/Simulation3D/Navigator.hs \
 		lib/Graphics/UI/Simulation3D/Shader.hs \
 
+hw3:
+	ghc --make -threaded -o hw3 \
+		hw/3/Main.hs \
+		lib/Graphics/UI/Simulation3D.hs \
+		lib/Graphics/UI/Simulation3D/Base.hs \
+		lib/Graphics/UI/Simulation3D/Util.hs \
+		lib/Graphics/UI/Simulation3D/Navigator.hs \
+		lib/Graphics/UI/Simulation3D/Shader.hs \
+
+hw3i:
+	ghci \
+		hw/3/Main.hs \
+		lib/Graphics/UI/Simulation3D.hs \
+		lib/Graphics/UI/Simulation3D/Base.hs \
+		lib/Graphics/UI/Simulation3D/Util.hs \
+		lib/Graphics/UI/Simulation3D/Navigator.hs \
+		lib/Graphics/UI/Simulation3D/Shader.hs \
+
 clean:
 	rm -f hw1 hw2
 	find -name \*.hi -exec rm {} \;

@@ -8,8 +8,6 @@ data SphereSim = SphereSim
 instance Simulation SphereSim where
     navigator = wasd $ WASD { rSpeed = 0.001, tSpeed = 0.05 }
     
-    begin = setCameraPos $ 4 |> [0,3,-0.3,1]
-    
     display = liftIO $ runAtFPS 60 $ do
         color3fM 0.8 0.8 1
         drawFloor
@@ -20,8 +18,7 @@ instance Simulation SphereSim where
     onKeyDown (Char ' ') = do
         c <- getCamera
         liftIO $ do
-            print $ cameraRotation c
-            print $ cameraPos c
+            print $ cameraMatrix c
     onKeyDown key = liftIO $ print key
     
 drawFloor :: IO ()

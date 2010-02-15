@@ -10,7 +10,6 @@ module Graphics.UI.Simulation3D.Base (
     HookIO, KeySet,
     getSimulation, setSimulation,
     getCamera, setCamera,
-    getCameraPos, setCameraPos,
     getInputState, setInputState,
     getKeySet, setKeySet,
     getMousePos, setMousePos,
@@ -50,8 +49,7 @@ data Camera = Camera {
     cameraFOV :: GLdouble,
     cameraNear :: GLdouble,
     cameraFar :: GLdouble,
-    cameraRotation :: Matrix Double,
-    cameraPos :: Vector Double
+    cameraMatrix :: Matrix Double
 } deriving (Eq,Show)
 
 data Simulation a => SimState a = SimState {
@@ -140,13 +138,6 @@ class Simulation a where
     
     setCamera :: SimSet a Camera
     setCamera cam = ST.modify $ \s -> s { simCamera = cam }
-    
-    getCameraPos :: SimGet a (Vector Double)
-    getCameraPos = cameraPos <$> getCamera
-    
-    setCameraPos :: SimSet a (Vector Double)
-    setCameraPos pos = setCamera . f =<< getCamera
-        where f s = s { cameraPos = pos }
     
     getInputState :: SimGet a InputState
     getInputState = simInputState <$> ST.get
@@ -286,12 +277,9 @@ class Simulation a where
                 projection
                 cam <- getCamera
                 liftIO $ do
-                    let tMat = translation ((3 |>) $ toList $ cameraPos cam)
-                        rMat = cameraRotation cam
-                    (multMatrix =<<) . toGLmat $ rMat <> tMat
-                    
                     matrixMode $= Modelview 0
                     loadIdentity
+                    (multMatrix =<<) . toGLmat $ cameraMatrix cam
                 
                 display
                 liftIO $ do

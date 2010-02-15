@@ -3,6 +3,7 @@ module Graphics.UI.Simulation3D (
     module Graphics.UI.Simulation3D.Base,
     module Graphics.UI.Simulation3D.Util,
     module Graphics.UI.Simulation3D.Navigator,
+    module Graphics.UI.Simulation3D.Shader,
     module Numeric.LinearAlgebra,
     module Numeric.LinearAlgebra.Transform,
     defaultState, runSimulation,
@@ -12,6 +13,7 @@ import Graphics.UI.GLUT hiding (Matrix(..),newMatrix,rotate,translate)
 
 import Graphics.UI.Simulation3D.Base
 import Graphics.UI.Simulation3D.Util
+import Graphics.UI.Simulation3D.Shader
 import Graphics.UI.Simulation3D.Navigator
 
 import Numeric.LinearAlgebra.Transform
@@ -25,8 +27,8 @@ defaultState sim = SimState {
         cameraFOV = 60,
         cameraNear = 0.1,
         cameraFar = 100000,
-        cameraRotation = rotation (AxisX $ -pi / 2),
-        cameraPos = 4 |> [0,0,0,1]
+        cameraMatrix = rotate (AxisX $ - pi / 2)
+            $ translation (3 |> [0,-0.5,-3])
     },
     simWindow = SimWindow {
         simWinTitle = "Simulation",
