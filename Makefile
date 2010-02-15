@@ -1,31 +1,57 @@
-all: hw1
+all: sphere hw1 hw2
+
+sphere:
+	ghc --make -threaded -o sphere \
+		examples/Sphere.hs \
+		lib/Graphics/UI/Simulation3D.hs \
+		lib/Graphics/UI/Simulation3D/Base.hs \
+		lib/Graphics/UI/Simulation3D/Util.hs \
+		lib/Graphics/UI/Simulation3D/Navigator.hs \
+		lib/Graphics/UI/Simulation3D/Shader.hs \
+
+spherei:
+	ghci \
+		examples/Sphere.hs \
+		lib/Graphics/UI/Simulation3D.hs \
+		lib/Graphics/UI/Simulation3D/Base.hs \
+		lib/Graphics/UI/Simulation3D/Util.hs \
+		lib/Graphics/UI/Simulation3D/Navigator.hs \
+		lib/Graphics/UI/Simulation3D/Shader.hs \
 
 hw1:
 	ghc --make -threaded -o hw1 \
 		hw/1/Main.hs \
-		lib/Graphics/UI/Simulation3D/Simulation.hs \
+		lib/Graphics/UI/Simulation3D.hs \
+		lib/Graphics/UI/Simulation3D/Base.hs \
 		lib/Graphics/UI/Simulation3D/Util.hs \
+		lib/Graphics/UI/Simulation3D/Navigator.hs \
 		lib/Graphics/UI/Simulation3D/Shader.hs \
 
 hw1i:
 	ghci \
 		hw/1/Main.hs \
-		lib/Graphics/UI/Simulation3D/Simulation.hs \
+		lib/Graphics/UI/Simulation3D.hs \
+		lib/Graphics/UI/Simulation3D/Base.hs \
 		lib/Graphics/UI/Simulation3D/Util.hs \
+		lib/Graphics/UI/Simulation3D/Navigator.hs \
 		lib/Graphics/UI/Simulation3D/Shader.hs \
 
 hw2:
 	ghc --make -threaded -o hw2 \
 		hw/2/Main.hs \
-		lib/Graphics/UI/Simulation3D/Simulation.hs \
+		lib/Graphics/UI/Simulation3D.hs \
+		lib/Graphics/UI/Simulation3D/Base.hs \
 		lib/Graphics/UI/Simulation3D/Util.hs \
+		lib/Graphics/UI/Simulation3D/Navigator.hs \
 		lib/Graphics/UI/Simulation3D/Shader.hs \
 
 hw2i:
 	ghci \
 		hw/2/Main.hs \
-		lib/Graphics/UI/Simulation3D/Simulation.hs \
+		lib/Graphics/UI/Simulation3D.hs \
+		lib/Graphics/UI/Simulation3D/Base.hs \
 		lib/Graphics/UI/Simulation3D/Util.hs \
+		lib/Graphics/UI/Simulation3D/Navigator.hs \
 		lib/Graphics/UI/Simulation3D/Shader.hs \
 
 clean:

@@ -23,7 +23,7 @@ wasd' :: WASD -> Camera -> InputState -> Camera
 wasd' params cam inputState = cam' where
     cam' = case keys of
         [] -> cam
-        _ -> cam { cameraMatrix = (cameraMatrix cam) <> rMat <> tMat }
+        _ -> cam { cameraMatrix = rMat <> tMat <> (cameraMatrix cam) }
     
     rMat, tMat :: Matrix Double
     rMat = foldl1 (+) $ map rKey keys
@@ -47,7 +47,7 @@ wasd' params cam inputState = cam' where
     tKey _ = 3 |> [0,0,0]
     
     rKey :: Key -> Matrix Double
-    rKey (MouseButton LeftButton) =
-        rotate (AxisX dry) $ rotation (AxisY (-drx))
+    rKey (MouseButton LeftButton) = rotation (AxisY (-drx))
+    --    rotate (AxisX dry) $ rotation (AxisY (-drx))
     rKey (MouseButton RightButton) = rotation (AxisZ drx)
     rKey _ = ident 4
