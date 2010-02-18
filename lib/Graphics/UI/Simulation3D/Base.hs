@@ -273,12 +273,11 @@ class Simulation a where
                 liftIO $ do
                     clearColor $= bg
                     clear [ ColorBuffer, DepthBuffer ]
-                    
                     matrixMode $= Modelview 0
                     loadIdentity
                     (multMatrix =<<) . toGLmat $ cameraMatrix cam
-                
                 display
+                
                 liftIO $ do
                     flush
                     swapBuffers

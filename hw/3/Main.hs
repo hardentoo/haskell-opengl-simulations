@@ -19,11 +19,10 @@ instance Simulation EllipsoidSim where
     display = do
         prog <- simShader <$> getSimulation
         [x,y,z,w] <- map (!! 3) . toLists . inv . cameraMatrix <$> getCamera
-        liftIO $ bindProgram prog "camera" $ vertex3f x y z
-        
+        --liftIO $ bindProgram prog "camera" $ vertex3f x y z
+        --liftIO $ withProgram prog $ preservingMatrix $ do
         liftIO $ withProgram prog $ preservingMatrix $ do
-            color3fM 0 1 1
-            renderObject Solid $ Sphere' 10 6 6
+            renderObject Solid $ Sphere' 1.5 6 6
     
     begin = do
         ptr <- liftIO $ newArray $ take (19 * 19)
@@ -40,10 +39,11 @@ vertexShader :: String
 vertexShader = [$here|
     // -- vertex shader
     varying vec3 offset; // -- normalized vector offset of camera
-    uniform vec3 camera; // -- camera in world coords
+    varying vec3 camera; // -- camera in world coords
     
     void main() {
         vec3 mv = vec3(gl_ModelViewMatrix * gl_Vertex);
+        camera = vec3(gl_ModelViewMatrixInverse[3]);
         offset = normalize(camera - mv);
         gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex; 
     }
@@ -52,7 +52,7 @@ vertexShader = [$here|
 fragmentShader :: String
 fragmentShader = [$here|
     // -- fragment shader
-    uniform vec3 camera;
+    varying vec3 camera;
     varying vec3 offset;
     
     void main() {
@@ -60,26 +60,34 @@ fragmentShader = [$here|
         vec3 C = camera;
         vec3 D = offset;
         
-        float t1, t2;
-        {
-            float a = dot(D,D);
-            float b = 2 * dot(C,D);
-            float c = dot(C,C) - 1;
-            t1 = (-b + sqrt(b * b - 4 * a * c)) / (2 * a);
-            t2 = (-b - sqrt(b * b - 4 * a * c)) / (2 * a);
+        float a = 1.0, b = 1.0, c = 1.0, k = -1.0;
+        
+        // a_, b_, and c_ used to compute quadratic equation
+        float a_ = (a * D.x * D.x) + (b * D.y * D.y) + (c * D.z * D.z);
+        float b_ = 2.0 * (
+            (a * C.x * D.x) + (b * C.y * D.y) + (c * C.z * D.z)
+        );
+        float c_ = (a * C.x * C.x) + (b * C.y * C.y) + (c * C.z * C.z) - k;
+        
+        float t = -1.0; // default to non-real answer
+        if (b_ * b_ < 4.0 * a_ * c_) discard;
+        float t1 = (-b_ + sqrt(b_ * b_ - 4.0 * a_ * c_)) / (2.0 * a_);
+        float t2 = (-b_ - sqrt(b_ * b_ - 4.0 * a_ * c_)) / (2.0 * a_);
+        
+        if (t1 >= 0.0 && t2 >= 0.0) {
+            t = min(t1,t2); // two solutions, pick nearest
         }
-        
-        if (t1 < 0 && t2 < 0) discard;
-        float t = max(t1,t2);
-        if (t1 > 0 && t2 > 0) t = min(t1,t2);
-        
+        else {
+            t = max(t1,t2); // one solution, pick >= 0
+        }
         vec3 point = C + t * D; // point of intersection
-        vec3 norm = normalize(vec3(2 * point.x, 2 * point.y, 2 * point.z));
         
+        //vec3 norm = normalize(vec3(2 * point.x, 2 * point.y, 2 * point.z));
         //vec4 proj = gl_ProjectionMatrix * vec4(vec3(point),1.0);
         //gl_FragDepth = 0.1; // 0.5 + 0.5 * (proj.z / proj.w);
         
-        gl_FragColor = vec4(norm, 1.0);
+        //gl_FragColor = vec4(norm, 1.0);
+        gl_FragColor = vec4(point, 1.0);
     }
 |]
  
