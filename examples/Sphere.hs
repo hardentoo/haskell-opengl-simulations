@@ -19,7 +19,7 @@ instance Simulation SphereSim where
         c <- getCamera
         liftIO $ do
             print $ cameraMatrix c
-    onKeyDown key = liftIO $ print key
+    onKeyDown _ = return ()
     
 drawFloor :: IO ()
 drawFloor = renderPrimitive Lines $ do
