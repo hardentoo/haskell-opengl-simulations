@@ -17,14 +17,13 @@ instance Simulation EllipsoidSim where
     navigator = wasd $ WASD { rSpeed = 0.001, tSpeed = 0.05 }
     
     display = do
-        drawFloor
         prog <- simShader <$> getSimulation
         [x,y,z,w] <- map (!! 3) . toLists . inv . cameraMatrix <$> getCamera
         liftIO $ bindProgram prog "camera" $ vertex3f x y z
         
         liftIO $ withProgram prog $ preservingMatrix $ do
             color3fM 0 1 1
-            renderObject Solid $ Sphere' 2 6 24
+            renderObject Solid $ Sphere' 10 6 6
     
     begin = do
         ptr <- liftIO $ newArray $ take (19 * 19)
@@ -46,7 +45,6 @@ vertexShader = [$here|
     void main() {
         vec3 mv = vec3(gl_ModelViewMatrix * gl_Vertex);
         offset = normalize(camera - mv);
-        
         gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex; 
     }
 |]
@@ -62,27 +60,26 @@ fragmentShader = [$here|
         vec3 C = camera;
         vec3 D = offset;
         
-        float a = 1.0, b = 1.0;
+        float t1, t2;
+        {
+            float a = dot(D,D);
+            float b = 2 * dot(C,D);
+            float c = dot(C,C) - 1;
+            t1 = (-b + sqrt(b * b - 4 * a * c)) / (2 * a);
+            t2 = (-b - sqrt(b * b - 4 * a * c)) / (2 * a);
+        }
         
-        // x²/a + y²/b = 1
-        float i = b * D.x * D.x + a * D.y * D.y;
-        float j = 2.0 * (a * C.y * D.y + b * C.x * D.x);
-        float k = a * C.y * C.y + b * C.x * C.x - a * b;
-        
-        if (j * j < 4.0 * i * k) discard;
-        
-        float t1 = (-j + sqrt(j * j - 4 * i * k)) / (2 * i);
-        float t2 = (-j - sqrt(j * j - 4 * i * k)) / (2 * i);
-        float t = min(t1,t2);
+        if (t1 < 0 && t2 < 0) discard;
+        float t = max(t1,t2);
+        if (t1 > 0 && t2 > 0) t = min(t1,t2);
         
         vec3 point = C + t * D; // point of intersection
-        if (point.z < 0.0) discard;
-        if (abs(point.y) > 0.2) discard;
+        vec3 norm = normalize(vec3(2 * point.x, 2 * point.y, 2 * point.z));
         
         //vec4 proj = gl_ProjectionMatrix * vec4(vec3(point),1.0);
         //gl_FragDepth = 0.1; // 0.5 + 0.5 * (proj.z / proj.w);
         
-        gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
+        gl_FragColor = vec4(norm, 1.0);
     }
 |]
  

@@ -277,9 +277,9 @@ class Simulation a where
                 projection
                 cam <- getCamera
                 liftIO $ do
+                    (multMatrix =<<) . toGLmat $ cameraMatrix cam
                     matrixMode $= Modelview 0
                     loadIdentity
-                    (multMatrix =<<) . toGLmat $ cameraMatrix cam
                 
                 display
                 liftIO $ do
