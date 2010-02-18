@@ -1,7 +1,7 @@
 all: sphere hw1 hw2
 
 sphere:
-	ghc --make -threaded -o sphere \
+	ghc --make -threaded -o sphere -static \
 		examples/Sphere.hs \
 		lib/Graphics/UI/Simulation3D.hs \
 		lib/Graphics/UI/Simulation3D/Base.hs \

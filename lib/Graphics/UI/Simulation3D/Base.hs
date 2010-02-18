@@ -94,6 +94,7 @@ class Simulation a where
             far = cameraFar cam
             aspect = fromIntegral w / fromIntegral h
         liftIO $ do
+            viewport $= (Position 0 0, Size w h)
             matrixMode $= Projection
             loadIdentity
             perspective fov aspect near far
@@ -226,8 +227,6 @@ class Simulation a where
     -- callback to set projection matrix and update window state
     bindReshape :: MVar (SimState a) -> IO ()
     bindReshape stateVar = (reshapeCallback $=) . Just $ \size@(Size w h) -> do
-        viewport $= (Position 0 0, size)
-        matrixMode $= Modelview 0
         let cb = setWindowSize (w,h) >> projection >> onReshape
         putMVar stateVar =<< ST.execStateT cb =<< takeMVar stateVar
     
@@ -270,16 +269,14 @@ class Simulation a where
             cb :: Simulation a => ST.StateT (SimState a) IO ()
             cb = do
                 bg <- getWindowBG
+                cam <- getCamera
                 liftIO $ do
                     clearColor $= bg
                     clear [ ColorBuffer, DepthBuffer ]
-                
-                projection
-                cam <- getCamera
-                liftIO $ do
-                    (multMatrix =<<) . toGLmat $ cameraMatrix cam
+                    
                     matrixMode $= Modelview 0
                     loadIdentity
+                    (multMatrix =<<) . toGLmat $ cameraMatrix cam
                 
                 display
                 liftIO $ do
