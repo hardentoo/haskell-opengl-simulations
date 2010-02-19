@@ -1,6 +1,6 @@
 {-# LANGUAGE QuasiQuotes #-} 
 module Graphics.UI.Simulation3D.Shader (
-    here, newProgram, withProgram, bindProgram
+    here, newProgram, withProgram, bindProgram, bindvProgram
 ) where
 import Graphics.UI.GLUT
 import Control.Monad (when,unless)
@@ -9,6 +9,7 @@ import Data.Maybe (isJust,fromJust)
 import Language.Haskell.TH.Quote 
 import Language.Haskell.TH.Syntax 
 import Language.Haskell.TH.Lib 
+import Foreign (Ptr)
 
 here :: QuasiQuoter -- heredocs
 here = QuasiQuoter (litE . stringL) (litP . stringL) 
@@ -35,6 +36,13 @@ bindProgram prog key value = do
     location <- get $ uniformLocation prog key
     reportErrors
     uniform location $= value
+
+-- bind uniform variables to a program object
+bindvProgram :: Uniform a => Program -> String -> Int -> Ptr a -> IO ()
+bindvProgram prog key size ptr = do
+    location <- get $ uniformLocation prog key
+    reportErrors
+    uniformv location (fromIntegral size) ptr
 
 -- run a shader over some stateful operations
 withProgram :: Program -> IO () -> IO ()

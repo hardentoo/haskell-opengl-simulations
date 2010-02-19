@@ -7,14 +7,12 @@ import Control.Monad.Trans (liftIO)
 import Control.Applicative ((<$>))
 import System.Random
 
--- With the simulator typeclass, just create your own datatypes...
-data EllipsoidSim = EmptySim | EllipsoidSim {
+data BumpReflectSim = EmptySim | BumpReflectSim {
     simShader :: Program,
     bumpTex :: PixelData (Color4 GLfloat)
 }
 
--- ...and then create instances with your type defining callbacks and such 
-instance Simulation EllipsoidSim where
+instance Simulation BumpReflectSim where
     navigator = wasd $ WASD { rSpeed = 0.001, tSpeed = 0.05 }
     
     display = do
@@ -26,29 +24,28 @@ instance Simulation EllipsoidSim where
         
         liftIO $ do
             [tex] <- genObjectNames 1
-            textureBinding Texture2D $= Just tex
-            textureWrapMode Texture2D S $= (Repeated, ClampToEdge)
-            textureWrapMode Texture2D T $= (Repeated, ClampToEdge)
-            textureFilter Texture2D $= ((Nearest, Nothing), Nearest)
+            textureBinding Texture3D $= Just tex
+            textureWrapMode Texture3D S $= (Repeated, ClampToEdge)
+            textureWrapMode Texture3D T $= (Repeated, ClampToEdge)
+            textureFilter Texture3D $= ((Nearest, Nothing), Nearest)
             
-            texImage2D
-                Nothing -- no cube maps
+            texImage3D
                 NoProxy -- standard texture 2d
                 0 -- level 0
                 RGBA' -- internal format
-                (TextureSize2D 100 100) -- texture size
+                (TextureSize3D 20 20 20) -- texture size
                 0 -- border
                 texPtr -- pointer to the blurred texture
             
             color4fM 1 1 1 1
-            texture Texture2D $= Enabled
+            texture Texture3D $= Enabled
             
             withProgram prog $ preservingMatrix $ do
                 bindProgram prog "camera" $ vertex3f x y z
                 color3fM 0 1 1
-                renderObject Solid $ Sphere' 20 6 6
+                renderObject Solid $ Sphere' 100 6 6
             
-            texture Texture2D $= Disabled
+            texture Texture3D $= Disabled
             deleteObjectNames [tex]
     
     onKeyDown (Char ' ') = do
@@ -60,12 +57,13 @@ instance Simulation EllipsoidSim where
     begin = do
         ptr <- liftIO $ do
             g <- newStdGen
-            newArray $ take (100 * 100)
+            newArray $ take (20 ^ 3)
                 $ [ color4f x x x 1.0 | x <- (randoms g :: [Float]) ]
         prog <- liftIO $ newProgram vertexShader fragmentShader
+        liftIO $ bindvProgram prog "bumpTex" (20 ^ 3) ptr
         
         setWindowBG $ color4cf 0.8 0.8 1 1
-        setSimulation $ EllipsoidSim {
+        setSimulation $ BumpReflectSim {
             simShader = prog,
             bumpTex = PixelData RGBA Float ptr
         }
@@ -74,7 +72,6 @@ vertexShader :: String
 vertexShader = [$here|
     // -- vertex shader
     uniform vec3 camera;
-    //varying vec3 camera;
     varying vec3 ray;
     
     void main() {
@@ -88,7 +85,7 @@ fragmentShader :: String
 fragmentShader = [$here|
     // -- fragment shader
     uniform vec3 camera;
-    //varying vec3 camera;
+    uniform sampler3D bumpTex;
     varying vec3 ray;
     
     struct material_t {
@@ -124,12 +121,14 @@ fragmentShader = [$here|
             else ix.t = max(t1,t2);
         }
         ix.point = E + ix.t * D;
-        ix.normal = normalize(ix.point);
+        vec3 bumpPoint = ix.point;
+        vec3 perturb = 20.0 * (vec3(texture3D(bumpTex,bumpPoint)) - vec3(0.5));
+        ix.normal = normalize(ix.point + perturb);
         return ix;
     }
     
     intersection parabolic_intersect(vec3 E_, vec3 D, vec3 P, float A, float B) {
-        // this doesn't work, for whatever reason
+        // Note: this doesn't work >_<
         // hyperbolic when B < 0
         /* z = x²/a² + y²/b²
             0 = x²*b² + y²*a² - z*a²*b²
@@ -167,6 +166,7 @@ fragmentShader = [$here|
     intersection cast(vec3 E, vec3 D, int exclude = -1) {
         intersection ix_f;
         ix_f.t = -1.0;
+        float sign = -1.0;
         
         for (int i = 0; i < 2; i++) {
             if (i == exclude) continue;
@@ -178,14 +178,21 @@ fragmentShader = [$here|
             
             if (i == 0) {
                 ix = sphere_intersect(E, D, vec3(4.0, 0.0, 0.0), 2.0);
-                ix.material.diffuse = vec4(0.2, 0.2, 0.4, 1.0);
-                ix.material.reflectivity = 0.25;
+                ix.material.diffuse = vec4(0.2, 0.2, 0.9, 1.0);
+                ix.material.reflectivity = 0.5;
             }
+            if (i == 1) {
+                ix = sphere_intersect(E, D, vec3(-1.0, 0.0, 0.0), 1.0);
+                ix.material.diffuse = vec4(0.8, 0.2, 0.2, 1.0);
+                ix.material.reflectivity = 0.5;
+            }
+            /*
             if (i == 1) {
                 ix = parabolic_intersect(E, D, vec3(0.0, 0.0, 0.0), 0.5, -0.5);
                 ix.material.diffuse = vec4(0.6, 1.0, 0.4, 1.0);
                 ix.material.reflectivity = 0.25;
             }
+            */
             
             // use the closer intersection and compute its color
             if (ix_f.t < 0.0 || (ix.t >= 0.0 && ix.t < ix_f.t)) {
@@ -226,7 +233,6 @@ fragmentShader = [$here|
         }
         
         gl_FragColor = ix.color;
-        
     }
 |]
  
