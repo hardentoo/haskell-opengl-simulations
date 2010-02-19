@@ -71,6 +71,8 @@ fragmentShader = [$here|
         vec3 normal;
         float reflectivity;
         vec4 color;
+        int surface_index;
+        vec3 pad;
     };
     
     intersection sphere_intersect(vec3 E_, vec3 D, vec3 P, float r) {
@@ -85,44 +87,37 @@ fragmentShader = [$here|
             ix.t = -1.0;
         }
         else {
-            ix.t = (-b - sqrt(det)) / (2.0 * a);
+            float t1 = (-b - sqrt(det)) / (2.0 * a);
+            float t2 = (-b + sqrt(det)) / (2.0 * a);
+            if (t1 > 0 && t2 > 0) ix.t = min(t1,t2);
+            else ix.t = max(t1,t2);
         }
         ix.point = E + ix.t * D;
-        ix.normal = normalize(ix.point * vec3(2.0,-2.0,2.0));
+        ix.normal = normalize((ix.point + P) * vec3(2.0,2.0,2.0));
         return ix;
     }
     
-    intersection floor_intersect(vec3 E, vec3 D) {
-        vec3 N = vec3(0.0, 0.0, -1.0);
-        vec3 Q = vec3(0.0, 0.0, 0.0);
-        
-        intersection ix;
-        ix.t = dot(N, (Q - E)) / dot(E,D);
-        ix.point = E + ix.t * D;
-        ix.normal = N;
-        ix.color = vec4(0.8, 0.5, 0.1, 1.0);
-        return ix;
-    }
-    
-    intersection cast(vec3 E, vec3 D) {
+    intersection cast(vec3 E, vec3 D, int exclude = -1) {
         intersection ix_f;
         ix_f.t = -1.0;
         
         for (int i = 0; i < 2; i++) {
+            if (i == exclude) continue;
             intersection ix;
             // reasonable defaults
             ix.color = vec4(1.0, 1.0, 1.0, 1.0);
             ix.reflectivity = 0.0;
+            ix.surface_index = i;
             
             if (i == 0) {
                 ix = sphere_intersect(E, D, vec3(-1.0, 0.0, 0.0), 1.0);
                 ix.color = vec4(1.0, 0.4, 0.4, 1.0);
-                ix.reflectivity = 0.5;
+                ix.reflectivity = 0.0;
             }
             if (i == 1) {
-                ix = sphere_intersect(E, D, vec3(1.0, 0.0, 0.0), 1.0);
-                ix.color = vec4(0.4, 1.0, 0.4, 1.0);
-                ix.reflectivity = 0.25;
+                ix = sphere_intersect(E, D, vec3(1.0, 0.0, 0.0), 0.4);
+                ix.color = vec4(0.4, 1.0, 1.0, 1.0);
+                ix.reflectivity = 1.0;
             }
             
             // use the closer intersection
@@ -135,6 +130,19 @@ fragmentShader = [$here|
         // P(t) = E + t * D, t >= 0
         
         intersection ix = cast(camera, ray);
+        // recursion depth of one for now
+        if (ix.reflectivity > 0.0) {
+            intersection ix_ = cast(ix.point, ix.normal, ix.surface_index);
+            if (ix_.t >= 0.0) { // hit something in the reflection
+                //ix.color = vec4(1.0,0.0,0.0,1.0);
+                ix.color = ix_.color * ix.reflectivity
+                    + ix.color * (1 - ix.reflectivity);
+            }
+            else { // reflect the background
+                ix.color = vec4(0.0,0.0,1.0,1.0);
+            }
+        }
+        
         if (ix.t < 0.0) discard;
         
         vec3 lightSource = normalize(vec3(3.0,0.0,1.0));
