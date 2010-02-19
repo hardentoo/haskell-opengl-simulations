@@ -69,7 +69,7 @@ fragmentShader = [$here|
         vec3 point;
         float t;
         vec3 normal;
-        float pad;
+        float reflectivity;
         vec4 color;
     };
     
@@ -90,7 +90,6 @@ fragmentShader = [$here|
         vec3 p = E + ix.t * D;
         ix.point = p + P;
         ix.normal = normalize(p * vec3(2.0,-2.0,2.0));
-        ix.color = vec4(1.0, 0.0, 0.0, 1.0);
         return ix;
     }
     
@@ -106,24 +105,37 @@ fragmentShader = [$here|
         return ix;
     }
     
+    intersection cast(vec3 E, vec3 D) {
+        intersection ix_f;
+        ix_f.t = -1.0;
+        
+        for (int i = 0; i < 2; i++) {
+            intersection ix;
+            // reasonable defaults
+            ix.color = vec4(1.0, 1.0, 1.0, 1.0);
+            ix.reflectivity = 0.0;
+            
+            if (i == 0) {
+                ix = sphere_intersect(E, D, vec3(-0.25, 0.0, 0.0), 1.0);
+                ix.color = vec4(1.0, 0.4, 0.4, 1.0);
+                ix.reflectivity = 0.5;
+            }
+            if (i == 1) {
+                ix = sphere_intersect(E, D, vec3(0.25, 0.0, 0.0), 1.0);
+                ix.color = vec4(0.4, 1.0, 0.4, 1.0);
+                ix.reflectivity = 0.25;
+            }
+            
+            // use the closer intersection
+            if (ix_f.t < 0.0 || (ix.t >= 0.0 && ix.t < ix_f.t)) ix_f = ix;
+        }
+        return ix_f;
+    }
+    
     void main() {
         // P(t) = E + t * D, t >= 0
         
-        intersection ix;
-        ix.t = -1.0;
-        
-        int m = 0;
-        for (int i = 0; i < 2; i++) {
-            intersection ix_;
-            if (i == 0) {
-                ix_ = sphere_intersect(camera, ray, vec3(0.3, 0.0, 0.0), 1.0);
-            }
-            if (i == 1) {
-                ix_ = sphere_intersect(camera, ray, vec3(-0.3, 0.0, 0.0), 1.0);
-            }
-            if (ix.t < 0.0 || (ix_.t >= 0.0 && ix_.t < ix.t)) ix = ix_;
-        }
-        
+        intersection ix = cast(camera, ray);
         if (ix.t < 0.0) discard;
         
         vec3 lightSource = normalize(vec3(3.0,0.0,1.0));
@@ -135,13 +147,11 @@ fragmentShader = [$here|
         float spec = min(max(dot(ix.normal,h),0.0),1.0);
         
         float v = min(max(pow(spec, 100.0) + diffuse, 0.0), 1.0);
-        gl_FragColor = vec4(v,v,v,1.0);
+        gl_FragColor = ix.color * vec4(v,v,v,1.0);
         
         vec4 proj = gl_ProjectionMatrix * vec4(ix.point,1.0);
         float depth = proj.z / proj.w;
         gl_FragDepth = clamp(0.5 + 0.5 * depth, 0.0, 1.0);
-        
-        //gl_FragColor = vec4(ix.color);
     }
 |]
  
