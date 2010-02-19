@@ -52,9 +52,9 @@ vertexShader = [$here|
     varying vec3 ray;
     
     void main() {
-        vec4 geom = gl_Vertex;
-        ray = normalize(vec3(geom) - camera);
-        gl_Position = gl_ProjectionMatrix * gl_ModelViewMatrix * geom; 
+        vec3 geom = vec3(gl_Vertex);
+        ray = normalize(geom - camera);
+        gl_Position = gl_ProjectionMatrix * gl_ModelViewMatrix * gl_Vertex; 
     }
 |]
 
@@ -73,8 +73,8 @@ fragmentShader = [$here|
         vec4 color;
     };
     
-    intersection sphere_intersect(vec3 E_, vec3 D_, vec3 P, float r) {
-        vec3 E = E_ + P, D = D_ + P;
+    intersection sphere_intersect(vec3 E_, vec3 D, vec3 P, float r) {
+        vec3 E = E_ - P;
         float a = dot(D,D);
         float b = 2.0 * dot(D,E);
         float c = dot(E,E) - r * r;
@@ -87,9 +87,8 @@ fragmentShader = [$here|
         else {
             ix.t = (-b - sqrt(det)) / (2.0 * a);
         }
-        vec3 p = E + ix.t * D;
-        ix.point = p + P;
-        ix.normal = normalize(p * vec3(2.0,-2.0,2.0));
+        ix.point = E + ix.t * D;
+        ix.normal = normalize(ix.point * vec3(2.0,-2.0,2.0));
         return ix;
     }
     
@@ -116,12 +115,12 @@ fragmentShader = [$here|
             ix.reflectivity = 0.0;
             
             if (i == 0) {
-                ix = sphere_intersect(E, D, vec3(-0.25, 0.0, 0.0), 1.0);
+                ix = sphere_intersect(E, D, vec3(-1.0, 0.0, 0.0), 1.0);
                 ix.color = vec4(1.0, 0.4, 0.4, 1.0);
                 ix.reflectivity = 0.5;
             }
             if (i == 1) {
-                ix = sphere_intersect(E, D, vec3(0.25, 0.0, 0.0), 1.0);
+                ix = sphere_intersect(E, D, vec3(1.0, 0.0, 0.0), 1.0);
                 ix.color = vec4(0.4, 1.0, 0.4, 1.0);
                 ix.reflectivity = 0.25;
             }
