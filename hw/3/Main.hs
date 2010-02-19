@@ -19,13 +19,19 @@ instance Simulation EllipsoidSim where
     display = do
         prog <- simShader <$> getSimulation
         mat <- cameraMatrix <$> getCamera
-        let [x,y,z] = take 3 $ toList $ mat <> (4 |> [0,0,0,1])
+        let [x,y,z] = take 3 $ map (!! 3) $ toLists $ inv mat
+        --let [x,y,z] = take 3 $ toList $ mat <> (4 |> [0,0,0,1])
         liftIO $ do
             withProgram prog $ preservingMatrix $ do
                 bindProgram prog "camera" $ vertex3f x y z
-                --translateM $ vector3f 0 0 2
                 color3fM 0 1 1
-                renderObject Solid $ Sphere' 4 6 6
+                renderObject Solid $ Sphere' 20 6 6
+    
+    onKeyDown (Char ' ') = do
+        mat <- cameraMatrix <$> getCamera
+        let [x,y,z] = take 3 $ toList $ mat <> (4 |> [0,0,0,1])
+        liftIO $ print (x,y,z)
+    onKeyDown _ = return ()
     
     begin = do
         ptr <- liftIO $ newArray $ take (19 * 19)
@@ -42,12 +48,14 @@ vertexShader :: String
 vertexShader = [$here|
     // -- vertex shader
     uniform vec3 camera;
+    //varying vec3 camera;
     varying vec3 ray;
     
     void main() {
-        vec3 mv = vec3(gl_ModelViewMatrix * gl_Vertex);
-        ray = normalize(camera - mv);
-        gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex; 
+        //vec4 geom = gl_ModelViewMatrix * gl_Vertex;
+        vec4 geom = gl_Vertex;
+        ray = normalize(vec3(geom) - camera);
+        gl_Position = gl_ProjectionMatrix * gl_ModelViewMatrix * geom; 
     }
 |]
 
@@ -55,41 +63,75 @@ fragmentShader :: String
 fragmentShader = [$here|
     // -- fragment shader
     uniform vec3 camera;
+    //varying vec3 camera;
     varying vec3 ray;
     
-    void main() {
-        // P(t) = C + t * D, t >= 0
-        vec3 C = camera;
-        vec3 D = ray;
-        float r = 0.5; // radius
-        
+    struct intersection {
+        vec3 point;
+        float t;
+        vec3 normal;
+        float pad;
+        vec4 color;
+    };
+    
+    intersection sphere_intersect(vec3 E, vec3 D, float r) {
         float a = dot(D,D);
-        float b = 2.0 * dot(D,C);
-        float c = dot(C,C) - r * r;
+        float b = 2.0 * dot(D,E);
+        float c = dot(E,E) - r * r;
         float det = b * b - 4.0 * a * c;
+        intersection ix;
         
-        if (det <= 0.0) {
-            gl_FragColor = vec4(0.0,0.0,0.0,1.0);
+        if (det < 0.0) {
+            ix.t = -1.0;
         }
         else {
-            float t = (-b - sqrt(det)) / (2.0 * a);
-            vec3 p = C + t * D;
-            
-            if (dot(p,p) > r * r + 0.01) discard;
-            
-            vec3 norm = normalize(p * vec3(2.0,-2.0,2.0));
-            vec3 lightSource = normalize(vec3(3.0,0.0,-5.0));
-            
-            // specular + diffuse lightning
-            float diffuse = min(max(dot(norm,lightSource),0.0),1.0);
-            
-            vec3 toCam = normalize(vec3(C)-p);
-            vec3 h = normalize(toCam + lightSource);
-            float spec = min(max(dot(norm,h),0.0),1.0);
-            
-            float v = min(max(pow(spec, 100.0) + diffuse, 0.0), 1.0);
-            gl_FragColor = vec4(v,v,v,1.0);
+            ix.t = (-b - sqrt(det)) / (2.0 * a);
         }
+        ix.point = E + ix.t * D;
+        ix.normal = normalize(ix.point * vec3(2.0,-2.0,2.0));
+        ix.color = vec4(1.0, 0.0, 0.0, 1.0);
+        return ix;
+    }
+    
+    intersection floor_intersect(vec3 E, vec3 D) {
+        vec3 N = vec3(0.0, 1.0, 0.0);
+        vec3 Q = vec3(0.0, 0.0, 0.0);
+        
+        intersection ix;
+        ix.t = dot(N, (Q - E)) / dot(E,D);
+        ix.point = E + ix.t * D;
+        ix.normal = N;
+        ix.color = vec4(0.8, 0.5, 0.1, 1.0);
+        if (abs(ix.point.x) > 1.0 || abs(ix.point.y) > 1.0) {
+            ix.t = -1.0;
+        }
+        return ix;
+    }
+    
+    void main() {
+        // P(t) = E + t * D, t >= 0
+        
+        float t;
+        intersection ix;
+        ix.t = -1.0;
+        
+        for (int i = 0; ix.t < 0.0 && i < 2; i++) {
+            if (i == 0) ix = sphere_intersect(camera, ray, 0.5);
+            if (i == 1) ix = floor_intersect(camera, ray);
+        }
+        if (ix.t < 0.0) discard;
+        
+        vec3 lightSource = normalize(vec3(3.0,0.0,1.0));
+        // specular + diffuse lightning
+        float diffuse = min(max(dot(ix.normal,lightSource),0.0),1.0);
+        
+        vec3 toEam = normalize(vec3(camera)-ix.point);
+        vec3 h = normalize(toEam + lightSource);
+        float spec = min(max(dot(ix.normal,h),0.0),1.0);
+        
+        float v = min(max(pow(spec, 100.0) + diffuse, 0.0), 1.0);
+        gl_FragColor = vec4(v,v,v,1.0);
+        //gl_FragColor = vec4(ix.color);
     }
 |]
  

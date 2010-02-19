@@ -274,12 +274,11 @@ class Simulation a where
                     clearColor $= bg
                     clear [ ColorBuffer, DepthBuffer ]
                 
-                projection
-                cam <- getCamera
+                mat <- cameraMatrix <$> getCamera
                 liftIO $ do
                     matrixMode $= Modelview 0
                     loadIdentity
-                    (multMatrix =<<) . toGLmat $ cameraMatrix cam
+                    multMatrix =<< toGLmat mat
                 
                 display
                 liftIO $ do
