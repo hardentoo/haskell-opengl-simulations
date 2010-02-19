@@ -33,7 +33,7 @@ instance Simulation BumpReflectSim where
                 NoProxy -- standard texture 2d
                 0 -- level 0
                 RGBA' -- internal format
-                (TextureSize3D 20 20 20) -- texture size
+                (TextureSize3D 30 30 30) -- texture size
                 0 -- border
                 texPtr -- pointer to the blurred texture
             
@@ -57,10 +57,10 @@ instance Simulation BumpReflectSim where
     begin = do
         ptr <- liftIO $ do
             g <- newStdGen
-            newArray $ take (20 ^ 3)
+            newArray $ take (30 ^ 3)
                 $ [ color4f x x x 1.0 | x <- (randoms g :: [Float]) ]
         prog <- liftIO $ newProgram vertexShader fragmentShader
-        liftIO $ bindvProgram prog "bumpTex" (20 ^ 3) ptr
+        liftIO $ bindvProgram prog "bumpTex" (30 ^ 3) ptr
         
         setWindowBG $ color4cf 0.8 0.8 1 1
         setSimulation $ BumpReflectSim {
@@ -122,7 +122,7 @@ fragmentShader = [$here|
         }
         ix.point = E + ix.t * D;
         vec3 bumpPoint = ix.point;
-        vec3 perturb = 20.0 * (vec3(texture3D(bumpTex,bumpPoint)) - vec3(0.5));
+        vec3 perturb = 0.1 * (vec3(texture3D(bumpTex,bumpPoint)) - vec3(0.5));
         ix.normal = normalize(ix.point + perturb);
         return ix;
     }
@@ -163,12 +163,13 @@ fragmentShader = [$here|
         return ix;
     }
     
+    // the meat of the geometry is in the ray casting routine
     intersection cast(vec3 E, vec3 D, int exclude = -1) {
         intersection ix_f;
         ix_f.t = -1.0;
         float sign = -1.0;
         
-        for (int i = 0; i < 2; i++) {
+        for (int i = 0; i < 10; i++) {
             if (i == exclude) continue;
             intersection ix;
             ix.index = i;
@@ -177,16 +178,20 @@ fragmentShader = [$here|
             ix.material.reflectivity = 0.0;
             
             if (i == 0) {
-                ix = sphere_intersect(E, D, vec3(4.0, 0.0, 0.0), 2.0);
-                ix.material.diffuse = vec4(0.2, 0.2, 0.9, 1.0);
-                ix.material.reflectivity = 0.5;
+                ix = sphere_intersect(E, D, vec3(0.0, 0.5, 0.0), 2.0);
+                ix.material.diffuse = vec4(0.9, 0.1, 0.1, 1.0);
+                ix.material.reflectivity = 0.0;
             }
-            if (i == 1) {
-                ix = sphere_intersect(E, D, vec3(-1.0, 0.0, 0.0), 1.0);
-                ix.material.diffuse = vec4(0.8, 0.2, 0.2, 1.0);
-                ix.material.reflectivity = 0.5;
+            else {
+                // instead of a real arch, build an arch out of spheres...
+                float a = -3.14159 / 8 * (i - 4 - 1);
+                vec3 p = 4.0 * vec3(sin(a), 0.0, cos(a));
+                ix = sphere_intersect(E, D, p, 1.0);
+                ix.material.diffuse = vec4(0.1, 0.6, 0.1, 1.0);
+                ix.material.reflectivity = 0.25;
             }
-            /*
+            
+            /* if only this part worked...
             if (i == 1) {
                 ix = parabolic_intersect(E, D, vec3(0.0, 0.0, 0.0), 0.5, -0.5);
                 ix.material.diffuse = vec4(0.6, 1.0, 0.4, 1.0);
@@ -220,7 +225,8 @@ fragmentShader = [$here|
         gl_FragDepth = clamp(0.5 + 0.5 * depth, 0.0, 1.0);
         
         intersection ix_;
-        for (int i = 0; i < 2 && ix.t >= 0.0; i++) {
+        // reflect rays
+        for (int i = 0; i < 3 && ix.t >= 0.0; i++) {
             if (ix.material.reflectivity > 0.0) {
                 ix_ = cast(ix.point, -ix.normal, ix.index);
                 if (ix_.t < 0.0) {
