@@ -65,14 +65,19 @@ fragmentShader = [$here|
     //varying vec3 camera;
     varying vec3 ray;
     
+    struct material_t {
+        vec4 diffuse;
+        vec4 ambient;
+        float reflectivity;
+    };
+    
     struct intersection {
         vec3 point;
         float t;
         vec3 normal;
-        float reflectivity;
+        int index;
+        material_t material;
         vec4 color;
-        int surface_index;
-        vec3 pad;
     };
     
     intersection sphere_intersect(vec3 E_, vec3 D, vec3 P, float r) {
@@ -89,11 +94,11 @@ fragmentShader = [$here|
         else {
             float t1 = (-b - sqrt(det)) / (2.0 * a);
             float t2 = (-b + sqrt(det)) / (2.0 * a);
-            if (t1 > 0 && t2 > 0) ix.t = min(t1,t2);
+            if (t1 > 0.0 && t2 > 0.0) ix.t = min(t1,t2);
             else ix.t = max(t1,t2);
         }
         ix.point = E + ix.t * D;
-        ix.normal = normalize((ix.point + P) * vec3(2.0,2.0,2.0));
+        ix.normal = normalize(-ix.point);
         return ix;
     }
     
@@ -104,25 +109,34 @@ fragmentShader = [$here|
         for (int i = 0; i < 2; i++) {
             if (i == exclude) continue;
             intersection ix;
-            // reasonable defaults
-            ix.color = vec4(1.0, 1.0, 1.0, 1.0);
-            ix.reflectivity = 0.0;
-            ix.surface_index = i;
+            ix.index = i;
+            ix.material.diffuse = vec4(1.0, 1.0, 1.0, 1.0);
+            ix.material.ambient = vec4(0.1, 0.1, 0.1, 1.0);
+            ix.material.reflectivity = 0.0;
             
             if (i == 0) {
                 ix = sphere_intersect(E, D, vec3(-1.0, 0.0, 0.0), 1.0);
-                ix.color = vec4(1.0, 0.4, 0.4, 1.0);
-                ix.reflectivity = 0.0;
+                ix.material.diffuse = vec4(1.0, 0.4, 0.4, 1.0);
+                ix.material.reflectivity = 0.0;
             }
             if (i == 1) {
                 ix = sphere_intersect(E, D, vec3(1.0, 0.0, 0.0), 0.4);
-                ix.color = vec4(0.4, 1.0, 1.0, 1.0);
-                ix.reflectivity = 1.0;
+                ix.material.diffuse = vec4(0.2, 0.5, 0.1, 1.0);
+                ix.material.reflectivity = 0.0;
             }
             
-            // use the closer intersection
-            if (ix_f.t < 0.0 || (ix.t >= 0.0 && ix.t < ix_f.t)) ix_f = ix;
+            // use the closer intersection and compute its color
+            if (ix_f.t < 0.0 || (ix.t >= 0.0 && ix.t < ix_f.t)) {
+                vec3 lightSource = normalize(vec3(3.0,2.0,-1.0));
+                vec4 diffuse = ix.material.diffuse
+                    * min(max(dot(ix.normal,lightSource),0.0),1.0);
+                diffuse.w = ix.material.diffuse.w;
+                ix.color = diffuse + ix.material.ambient;
+                
+                ix_f = ix;
+            }
         }
+        
         return ix_f;
     }
     
@@ -131,12 +145,11 @@ fragmentShader = [$here|
         
         intersection ix = cast(camera, ray);
         // recursion depth of one for now
-        if (ix.reflectivity > 0.0) {
-            intersection ix_ = cast(ix.point, ix.normal, ix.surface_index);
+        if (ix.material.reflectivity > 0.0) {
+            intersection ix_ = cast(ix.point, ix.normal, ix.index);
             if (ix_.t >= 0.0) { // hit something in the reflection
-                //ix.color = vec4(1.0,0.0,0.0,1.0);
-                ix.color = ix_.color * ix.reflectivity
-                    + ix.color * (1 - ix.reflectivity);
+                ix.color = ix.material.reflectivity * ix_.color
+                    + (1.0 - ix.material.reflectivity) * ix.color;
             }
             else { // reflect the background
                 ix.color = vec4(0.0,0.0,1.0,1.0);
@@ -144,17 +157,7 @@ fragmentShader = [$here|
         }
         
         if (ix.t < 0.0) discard;
-        
-        vec3 lightSource = normalize(vec3(3.0,0.0,1.0));
-        // specular + diffuse lightning
-        float diffuse = min(max(dot(ix.normal,lightSource),0.0),1.0);
-        
-        vec3 toEam = normalize(vec3(camera)-ix.point);
-        vec3 h = normalize(toEam + lightSource);
-        float spec = min(max(dot(ix.normal,h),0.0),1.0);
-        
-        float v = min(max(pow(spec, 100.0) + diffuse, 0.0), 1.0);
-        gl_FragColor = ix.color * vec4(v,v,v,1.0);
+        gl_FragColor = ix.color;
         
         vec4 proj = gl_ProjectionMatrix * vec4(ix.point,1.0);
         float depth = proj.z / proj.w;
