@@ -98,7 +98,7 @@ fragmentShader = [$here|
             else ix.t = max(t1,t2);
         }
         ix.point = E + ix.t * D;
-        ix.normal = normalize(-ix.point);
+        ix.normal = normalize(ix.point);
         return ix;
     }
     
@@ -120,16 +120,15 @@ fragmentShader = [$here|
                 ix.material.reflectivity = 0.0;
             }
             if (i == 1) {
-                ix = sphere_intersect(E, D, vec3(1.0, 0.0, 0.0), 0.4);
-                ix.material.diffuse = vec4(0.2, 0.5, 0.1, 1.0);
-                ix.material.reflectivity = 0.0;
+                ix = sphere_intersect(E, D, vec3(1.0, 0.0, -0.3), 0.4);
+                ix.material.diffuse = vec4(0.5, 0.1, 0.5, 1.0);
+                ix.material.reflectivity = 0.85;
             }
-            
             // use the closer intersection and compute its color
             if (ix_f.t < 0.0 || (ix.t >= 0.0 && ix.t < ix_f.t)) {
                 vec3 lightSource = normalize(vec3(3.0,2.0,-1.0));
                 vec4 diffuse = ix.material.diffuse
-                    * min(max(dot(ix.normal,lightSource),0.0),1.0);
+                    * min(max(dot(ix.normal + D,lightSource),0.0),1.0);
                 diffuse.w = ix.material.diffuse.w;
                 ix.color = diffuse + ix.material.ambient;
                 
@@ -142,26 +141,30 @@ fragmentShader = [$here|
     
     void main() {
         // P(t) = E + t * D, t >= 0
+        const vec4 sky = vec4(0.7,0.8,1.0,1.0);
         
         intersection ix = cast(camera, ray);
-        // recursion depth of one for now
-        if (ix.material.reflectivity > 0.0) {
-            intersection ix_ = cast(ix.point, ix.normal, ix.index);
-            if (ix_.t >= 0.0) { // hit something in the reflection
-                ix.color = ix.material.reflectivity * ix_.color
-                    + (1.0 - ix.material.reflectivity) * ix.color;
-            }
-            else { // reflect the background
-                ix.color = vec4(0.0,0.0,1.0,1.0);
-            }
-        }
-        
-        if (ix.t < 0.0) discard;
-        gl_FragColor = ix.color;
+        if (ix.t < 0.0) ix.color = sky;
         
         vec4 proj = gl_ProjectionMatrix * vec4(ix.point,1.0);
         float depth = proj.z / proj.w;
         gl_FragDepth = clamp(0.5 + 0.5 * depth, 0.0, 1.0);
+        
+        intersection ix_;
+        for (int i = 0; i < 4 && ix.t >= 0.0; i++) {
+            if (ix.material.reflectivity > 0.0) {
+                ix_ = cast(ix.point, -ix.normal, ix.index);
+                if (ix_.t < 0.0) {
+                    ix_.color = sky; // reflected ray hit the sky
+                }
+                ix_.color = ix.material.reflectivity * ix_.color
+                    + (1.0 - ix.material.reflectivity) * ix.color;
+                ix = ix_;
+            }
+        }
+        
+        gl_FragColor = ix.color;
+        
     }
 |]
  
