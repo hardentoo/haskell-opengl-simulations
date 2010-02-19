@@ -52,7 +52,6 @@ vertexShader = [$here|
     varying vec3 ray;
     
     void main() {
-        //vec4 geom = gl_ModelViewMatrix * gl_Vertex;
         vec4 geom = gl_Vertex;
         ray = normalize(vec3(geom) - camera);
         gl_Position = gl_ProjectionMatrix * gl_ModelViewMatrix * geom; 
