@@ -53,15 +53,18 @@ fragmentShader = [$here|
     varying vec3 camera;
     varying vec3 offset;
     
-    #define surface(C,D,x) \
-        C.x + x * x + D.x * (x + 1)
+    #define surface(C,D,T) \
+        C.x + T
     
     void main() {
         // P(t) = C + t * D, t >= 0
         vec3 C = camera;
         vec3 D = offset;
         
-        float tn_prev = 0, tn = 1, v;
+        float tn_prev = 0.0;
+        float tn = 1.0;
+        float v;
+        
         for (int i = 0; i < 4; i++) {
             float s = surface(C,D,tn);
             float sp = surface(C,D,tn_prev);
@@ -69,6 +72,7 @@ fragmentShader = [$here|
             tn_prev = tn;
             tn = tn - v;
         }
+        
         if (abs(v) > 0.01) discard;
          
         vec3 point = C + tn * D; // point of intersection

@@ -18,9 +18,8 @@ instance Simulation EllipsoidSim where
     
     display = do
         prog <- simShader <$> getSimulation
-        [x,y,z,w] <- map (!! 3) . toLists . inv . cameraMatrix <$> getCamera
+        --[x,y,z,_] <- map (!! 3) . toLists . inv . cameraMatrix <$> getCamera
         --liftIO $ bindProgram prog "camera" $ vertex3f x y z
-        --liftIO $ withProgram prog $ preservingMatrix $ do
         liftIO $ withProgram prog $ preservingMatrix $ do
             renderObject Solid $ Sphere' 1.5 6 6
     
@@ -69,11 +68,11 @@ fragmentShader = [$here|
         );
         float c_ = (a * C.x * C.x) + (b * C.y * C.y) + (c * C.z * C.z) - k;
         
-        float t = -1.0; // default to non-real answer
         if (b_ * b_ < 4.0 * a_ * c_) discard;
         float t1 = (-b_ + sqrt(b_ * b_ - 4.0 * a_ * c_)) / (2.0 * a_);
         float t2 = (-b_ - sqrt(b_ * b_ - 4.0 * a_ * c_)) / (2.0 * a_);
         
+        float t;
         if (t1 >= 0.0 && t2 >= 0.0) {
             t = min(t1,t2); // two solutions, pick nearest
         }
@@ -85,16 +84,14 @@ fragmentShader = [$here|
         //vec3 norm = normalize(vec3(2 * point.x, 2 * point.y, 2 * point.z));
         //vec4 proj = gl_ProjectionMatrix * vec4(vec3(point),1.0);
         //gl_FragDepth = 0.1; // 0.5 + 0.5 * (proj.z / proj.w);
-        
         //gl_FragColor = vec4(norm, 1.0);
-        gl_FragColor = vec4(point, 1.0);
+        gl_FragColor = vec4(t1 > 0.0 ? 1.0 : 0.0, t2 > 0.0 ? 1.0 : 0.0, 0.0, 1.0);
     }
 |]
  
 drawFloor :: HookIO EllipsoidSim ()
 drawFloor = do
     texPtr <- checkerTex <$> getSimulation
-    
     liftIO $ do
         tex : [] <- genObjectNames 1
         textureBinding Texture2D $= Just tex
