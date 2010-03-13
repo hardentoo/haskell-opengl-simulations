@@ -18,9 +18,11 @@ instance Simulation EllipsoidSim where
     
     display = do
         prog <- simShader <$> getSimulation
-        --[x,y,z,_] <- map (!! 3) . toLists . inv . cameraMatrix <$> getCamera
-        --liftIO $ bindProgram prog "camera" $ vertex3f x y z
+        mat <- cameraMatrix <$> getCamera
+        
+        let [x,y,z] = take 3 $ map (!! 3) $ toLists $ inv mat
         liftIO $ withProgram prog $ preservingMatrix $ do
+            bindProgram prog "camera" $ vertex3f x y z
             renderObject Solid $ Sphere' 1.5 6 6
     
     begin = do
@@ -38,11 +40,10 @@ vertexShader :: String
 vertexShader = [$here|
     // -- vertex shader
     varying vec3 offset; // -- normalized vector offset of camera
-    varying vec3 camera; // -- camera in world coords
+    uniform vec3 camera; // -- camera in world coords
     
     void main() {
         vec3 mv = vec3(gl_ModelViewMatrix * gl_Vertex);
-        camera = vec3(gl_ModelViewMatrixInverse[3]);
         offset = normalize(camera - mv);
         gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex; 
     }
@@ -50,11 +51,11 @@ vertexShader = [$here|
 
 fragmentShader :: String
 fragmentShader = [$here|
-    varying vec3 camera;
+    uniform vec3 camera;
     varying vec3 offset;
     
     #define surface(C,D,T) \
-        C.x + T
+        D.x + T
     
     void main() {
         // P(t) = C + t * D, t >= 0
